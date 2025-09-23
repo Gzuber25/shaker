@@ -3,665 +3,637 @@
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Control Shaker</title>
-        <script src="https://cdn.tailwindcss.com"></script>
+        <title>Dashboard ESP32 - Shaker</title>
+        <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+        <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+        <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+        <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600&display=swap" rel="stylesheet">
         <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-        <script>
-            tailwind.config = {
-                theme: {
-                    extend: {
-                        colors: {
-                            primary: '#3B82F6',
-                            secondary: '#10B981',
-                            dark: '#1F2937',
-                            light: '#F9FAFB',
-                        },
-                        fontFamily: {
-                            sans: ['Inter', 'sans-serif'],
-                        },
-                    }
-                }
-            }
-        </script>
         <style>
-            @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+            :root {
+                --primary: #4361ee;
+                --secondary: #3f37c9;
+                --accent: #4895ef;
+                --danger: #f72585;
+                --success: #4cc9f0;
+                --warning: #f8961e;
+                --dark: #212529;
+                --light: #f8f9fa;
+            }
+
+            * {
+                box-sizing: border-box;
+                margin: 0;
+                padding: 0;
+            }
 
             body {
-                font-family: 'Inter', sans-serif;
-                background-color: #f3f4f6;
+                font-family: 'Poppins', sans-serif;
+                background: linear-gradient(135deg, #f5f7fa 0%, #e4e8f0 100%);
+                color: var(--dark);
+                min-height: 100vh;
+                padding: 2rem;
             }
 
-            .gauge {
-                position: relative;
-                width: 200px;
-                height: 100px;
+            .dashboard {
+                max-width: 1400px;
                 margin: 0 auto;
+                display: grid;
+                grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+                gap: 1.5rem;
             }
 
-            .gauge-body {
-                width: 100%;
-                height: 0;
-                padding-bottom: 50%;
-                background: #e0e0e0;
-                border-top-left-radius: 100% 200%;
-                border-top-right-radius: 100% 200%;
-                overflow: hidden;
-                position: relative;
-            }
-
-            .gauge-fill {
-                position: absolute;
-                top: 100%;
-                left: 0;
-                width: 100%;
-                height: 100%;
-                background: linear-gradient(90deg, #3B82F6, #10B981);
-                transform-origin: center top;
-                transform: rotate(0.5turn);
-                transition: transform 0.5s ease-out;
-            }
-
-            .gauge-cover {
-                width: 75%;
-                height: 150%;
+            .header {
+                grid-column: 1 / -1;
                 background: white;
-                border-radius: 50%;
-                position: absolute;
-                top: 25%;
-                left: 50%;
-                transform: translateX(-50%);
+                border-radius: 1rem;
+                padding: 1.5rem;
+                box-shadow: 0 10px 30px rgba(0, 0, 0, 0.05);
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                animation: fadeIn 0.8s ease-out;
+            }
+
+            .header-content {
+                display: flex;
+                flex-direction: column;
+                gap: 0.5rem;
+            }
+
+            .header h1 {
+                font-weight: 600;
+                color: var(--primary);
                 display: flex;
                 align-items: center;
-                justify-content: center;
-                font-size: 1.5rem;
-                font-weight: bold;
+                gap: 0.8rem;
             }
 
-            .motor-step {
+            .header h1 i {
+                color: var(--accent);
+            }
+
+            .header-controls {
+                display: flex;
+                align-items: center;
+                gap: 1rem;
+            }
+
+            .status-badge {
+                display: flex;
+                align-items: center;
+                gap: 0.6rem;
+                background: rgba(67, 97, 238, 0.1);
+                padding: 0.6rem 1.2rem;
+                border-radius: 2rem;
+                font-weight: 500;
                 transition: all 0.3s ease;
             }
 
-            .motor-step.active {
-                background-color: #3B82F6;
+            .status-badge.connected {
+                background: rgba(76, 201, 240, 0.1);
+                color: var(--success);
+            }
+
+            .status-badge.disconnected {
+                background: rgba(247, 37, 133, 0.1);
+                color: var(--danger);
+            }
+
+            .status-indicator {
+                width: 12px;
+                height: 12px;
+                border-radius: 50%;
+                display: inline-block;
+            }
+
+            .status-indicator.connected {
+                background: var(--success);
+                box-shadow: 0 0 10px var(--success);
+            }
+
+            .status-indicator.disconnected {
+                background: var(--danger);
+                box-shadow: 0 0 10px var(--danger);
+            }
+
+            .last-update {
+                font-size: 0.9rem;
+                color: #6c757d;
+                background: rgba(108, 117, 125, 0.1);
+                padding: 0.4rem 0.8rem;
+                border-radius: 1rem;
+            }
+
+            .card {
+                background: white;
+                border-radius: 1rem;
+                padding: 1.5rem;
+                box-shadow: 0 10px 30px rgba(0, 0, 0, 0.05);
+                transition: transform 0.3s ease, box-shadow 0.3s ease;
+                animation: fadeIn 0.8s ease-out;
+                animation-fill-mode: backwards;
+            }
+
+            .card:hover {
+                transform: translateY(-5px);
+                box-shadow: 0 15px 35px rgba(0, 0, 0, 0.1);
+            }
+
+            .card:nth-child(2) {
+                animation-delay: 0.1s;
+            }
+
+            .card:nth-child(3) {
+                animation-delay: 0.2s;
+            }
+
+            .card:nth-child(4) {
+                animation-delay: 0.3s;
+            }
+
+            .card-header {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                margin-bottom: 1rem;
+            }
+
+            .card-title {
+                font-weight: 500;
+                color: var(--secondary);
+                display: flex;
+                align-items: center;
+                gap: 0.6rem;
+            }
+
+            .card-icon {
+                width: 2.5rem;
+                height: 2.5rem;
+                border-radius: 0.8rem;
+                display: flex;
+                align-items: center;
+                justify-content: center;
                 color: white;
-                transform: scale(1.1);
+            }
+
+            .temp-icon {
+                background: linear-gradient(135deg, #ff9a9e 0%, #fad0c4 100%);
+            }
+
+            .humidity-icon {
+                background: linear-gradient(135deg, #a1c4fd 0%, #c2e9fb 100%);
+            }
+
+            .motor-icon {
+                background: linear-gradient(135deg, #84fab0 0%, #8fd3f4 100%);
+            }
+
+            .card-value {
+                font-size: 2.5rem;
+                font-weight: 600;
+                margin: 1rem 0;
+                color: var(--dark);
+            }
+
+            .card-unit {
+                font-size: 1rem;
+                color: var(--accent);
+                font-weight: 500;
             }
 
             .chart-container {
                 position: relative;
-                height: 300px;
+                height: 200px;
                 width: 100%;
+                margin-top: 1rem;
+            }
+
+            .trend {
+                display: flex;
+                align-items: center;
+                font-size: 0.9rem;
+                color: #6c757d;
+            }
+
+            .trend.up {
+                color: var(--danger);
+            }
+
+            .trend.down {
+                color: var(--success);
+            }
+
+            .motor-status {
+                display: flex;
+                align-items: center;
+                gap: 0.5rem;
+                margin-top: 0.5rem;
+            }
+
+            .status-on {
+                color: var(--success);
+                font-weight: 500;
+            }
+
+            .status-off {
+                color: var(--danger);
+                font-weight: 500;
+            }
+
+            @keyframes fadeIn {
+                from {
+                    opacity: 0;
+                    transform: translateY(20px);
+                }
+                to {
+                    opacity: 1;
+                    transform: translateY(0);
+                }
             }
 
             @keyframes pulse {
                 0% {
-                    opacity: 1;
+                    transform: scale(1);
                 }
-
                 50% {
-                    opacity: 0.5;
+                    transform: scale(1.05);
                 }
-
                 100% {
-                    opacity: 1;
+                    transform: scale(1);
                 }
             }
 
             .pulse {
                 animation: pulse 2s infinite;
             }
+
+            @media (max-width: 768px) {
+                .dashboard {
+                    grid-template-columns: 1fr;
+                }
+
+                .header {
+                    flex-direction: column;
+                    gap: 1rem;
+                    text-align: center;
+                }
+
+                .header-controls {
+                    flex-direction: column;
+                    width: 100%;
+                    margin-top: 1rem;
+                }
+            }
         </style>
     </head>
-    <body class="bg-gray-100">
-        <div class="min-h-screen">
-            <!-- Header -->
-            <header class="bg-white shadow-sm">
-                <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
-                    <div class="flex items-center space-x-4">
-                        <div class="bg-blue-500 p-2 rounded-lg">
-                            <i class="fas fa-microchip text-white text-2xl"></i>
-                        </div>
-                        <h1 class="text-2xl font-bold text-gray-800">Agitador Automatico (SHAKER)</h1>
+    <body>
+        <div class="dashboard">
+            <header class="header">
+                <div class="header-content">
+                    <h1><i class="fas fa-microchip"></i> Dashboard Shaker ESP32</h1>
+                    <p>Monitoreo en tiempo real del sistema Shaker</p>
+                </div>
+                <div class="header-controls">
+                    <div id="status-badge" class="status-badge disconnected">
+                        <span id="status-indicator" class="status-indicator disconnected"></span>
+                        <span id="connection-text">Desconectado</span>
                     </div>
-                    <div class="flex items-center space-x-4">
-                        <div class="relative">
-                            <i class="fas fa-bell text-gray-500 text-xl cursor-pointer hover:text-blue-500"></i>
-                            <span
-                                class="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-4 w-4 flex items-center justify-center">3</span>
-                        </div>
-                        <div
-                            class="h-8 w-8 rounded-full bg-blue-500 flex items-center justify-center text-white font-bold">
-                            JS</div>
+                    <div id="last-update" class="last-update">
+                        <i class="fas fa-clock"></i> Última actualización: --
                     </div>
                 </div>
             </header>
 
-            <!-- Main Content -->
-            <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-                <!-- Status Cards -->
-                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-                    <div class="bg-white rounded-lg shadow p-6">
-                        <div class="flex items-center justify-between">
-                            <div>
-                                <p class="text-gray-500">Temperatura</p>
-                                <h2 class="text-3xl font-bold text-gray-800 mt-2"><span
-                                        id="temperature-value">24.5</span>°C</h2>
-                            </div>
-                            <div class="bg-blue-100 p-3 rounded-full">
-                                <i class="fas fa-temperature-high text-blue-500 text-2xl"></i>
-                            </div>
-                        </div>
-                        <div class="mt-4">
-                            <div class="flex items-center justify-between text-sm text-gray-500">
-                                <span>Min: 18°C</span>
-                                <span>Max: 32°C</span>
-                            </div>
-                            <div class="w-full bg-gray-200 rounded-full h-2 mt-1">
-                                <div id="temperature-bar" class="bg-blue-500 h-2 rounded-full" style="width: 60%"></div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="bg-white rounded-lg shadow p-6">
-                        <div class="flex items-center justify-between">
-                            <div>
-                                <p class="text-gray-500">Humedad</p>
-                                <h2 class="text-3xl font-bold text-gray-800 mt-2"><span id="humidity-value">65</span>%
-                                </h2>
-                            </div>
-                            <div class="bg-green-100 p-3 rounded-full">
-                                <i class="fas fa-tint text-green-500 text-2xl"></i>
-                            </div>
-                        </div>
-                        <div class="mt-4">
-                            <div class="flex items-center justify-between text-sm text-gray-500">
-                                <span>Min: 30%</span>
-                                <span>Max: 90%</span>
-                            </div>
-                            <div class="w-full bg-gray-200 rounded-full h-2 mt-1">
-                                <div id="humidity-bar" class="bg-green-500 h-2 rounded-full" style="width: 65%"></div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="bg-white rounded-lg shadow p-6">
-                        <div class="flex items-center justify-between">
-                            <div>
-                                <p class="text-gray-500">Estado del Motor</p>
-                                <h2 class="text-3xl font-bold text-gray-800 mt-2"><span
-                                        id="motor-status">Inactivo</span></h2>
-                            </div>
-                            <div class="bg-yellow-100 p-3 rounded-full">
-                                <i class="fas fa-cog text-yellow-500 text-2xl"></i>
-                            </div>
-                        </div>
-                        <div class="mt-4">
-                            <div class="flex items-center justify-between text-sm text-gray-500">
-                                <span>Pasos: <span id="step-count">0</span></span>
-                                <span>Velocidad: <span id="motor-speed">0</span> rpm</span>
-                            </div>
-                            <div class="w-full bg-gray-200 rounded-full h-2 mt-1">
-                                <div id="motor-bar" class="bg-yellow-500 h-2 rounded-full" style="width: 0%"></div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="bg-white rounded-lg shadow p-6">
-                        <div class="flex items-center justify-between">
-                            <div>
-                                <p class="text-gray-500">Última Actualización</p>
-                                <h2 class="text-3xl font-bold text-gray-800 mt-2"><span id="last-update">Hace 5s</span>
-                                </h2>
-                            </div>
-                            <div class="bg-purple-100 p-3 rounded-full">
-                                <i class="fas fa-clock text-purple-500 text-2xl"></i>
-                            </div>
-                        </div>
-                        <div class="mt-4">
-                            <div class="flex items-center justify-between text-sm text-gray-500">
-                                <span>Estado:</span>
-                                <span class="text-green-500 font-medium"><i class="fas fa-circle pulse"></i>
-                                    Conectado</span>
-                            </div>
-                            <button id="refresh-btn"
-                                class="w-full mt-2 bg-blue-500 hover:bg-blue-600 text-white py-1 px-4 rounded text-sm transition duration-300">
-                                <i class="fas fa-sync-alt mr-2"></i> Actualizar Datos
-                            </button>
-                        </div>
+            <div class="card">
+                <div class="card-header">
+                    <h2 class="card-title"><i class="fas fa-temperature-high"></i> Temperatura</h2>
+                    <div class="card-icon temp-icon">
+                        <i class="fas fa-thermometer-half"></i>
                     </div>
                 </div>
+                <div class="card-value"><span id="temperature">--</span> <span class="card-unit">°C</span></div>
+                <div class="trend" id="temp-trend"><i class="fas fa-arrow-right"></i> Esperando datos</div>
+                <div class="chart-container">
+                    <canvas id="tempChart"></canvas>
+                </div>
+            </div>
 
-                <!-- Charts and Controls -->
-                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
-                    <!-- Temperature Gauge -->
-                    <div class="bg-white rounded-lg shadow p-6 col-span-1">
-                        <h3 class="text-lg font-semibold text-gray-800 mb-4">Temperatura Actual</h3>
-                        <div class="gauge">
-                            <div class="gauge-body">
-                                <div class="gauge-fill" id="temperature-gauge"></div>
-                                <div class="gauge-cover" id="temperature-gauge-value">24.5°C</div>
-                            </div>
-                        </div>
-                        <div class="mt-6">
-                            <div class="flex justify-between items-center mb-2">
-                                <span class="text-sm text-gray-500">Histórico:</span>
-                                <select class="text-sm border rounded px-2 py-1">
-                                    <option>Última hora</option>
-                                    <option>Últimas 24 horas</option>
-                                    <option>Última semana</option>
-                                </select>
-                            </div>
-                            <div class="chart-container">
-                                <canvas id="temperature-chart"></canvas>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Humidity Gauge -->
-                    <div class="bg-white rounded-lg shadow p-6 col-span-1">
-                        <h3 class="text-lg font-semibold text-gray-800 mb-4">Humedad Actual</h3>
-                        <div class="gauge">
-                            <div class="gauge-body">
-                                <div class="gauge-fill" id="humidity-gauge"></div>
-                                <div class="gauge-cover" id="humidity-gauge-value">65%</div>
-                            </div>
-                        </div>
-                        <div class="mt-6">
-                            <div class="flex justify-between items-center mb-2">
-                                <span class="text-sm text-gray-500">Histórico:</span>
-                                <select class="text-sm border rounded px-2 py-1">
-                                    <option>Última hora</option>
-                                    <option>Últimas 24 horas</option>
-                                    <option>Última semana</option>
-                                </select>
-                            </div>
-                            <div class="chart-container">
-                                <canvas id="humidity-chart"></canvas>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Motor Controls -->
-                    <div class="bg-white rounded-lg shadow p-6 col-span-1">
-                        <h3 class="text-lg font-semibold text-gray-800 mb-4">Control del Motor Paso a Paso</h3>
-                        <div class="flex justify-center mb-6">
-                            <div class="relative w-40 h-40">
-                                <div class="absolute inset-0 rounded-full bg-gray-200 flex items-center justify-center">
-                                    <div
-                                        class="w-32 h-32 rounded-full bg-white shadow-inner flex items-center justify-center">
-                                        <i class="fas fa-cog text-3xl text-gray-400" id="motor-icon"></i>
-                                    </div>
-                                </div>
-                                <div class="motor-step absolute top-0 left-1/2 -ml-3 -mt-3 w-6 h-6 rounded-full bg-gray-300 flex items-center justify-center text-xs font-bold"
-                                    data-step="1">1</div>
-                                <div class="motor-step absolute top-1/2 right-0 -mr-3 -mt-3 w-6 h-6 rounded-full bg-gray-300 flex items-center justify-center text-xs font-bold"
-                                    data-step="2">2</div>
-                                <div class="motor-step absolute bottom-0 left-1/2 -ml-3 -mb-3 w-6 h-6 rounded-full bg-gray-300 flex items-center justify-center text-xs font-bold"
-                                    data-step="3">3</div>
-                                <div class="motor-step absolute top-1/2 left-0 -ml-3 -mt-3 w-6 h-6 rounded-full bg-gray-300 flex items-center justify-center text-xs font-bold"
-                                    data-step="4">4</div>
-                            </div>
-                        </div>
-
-                        <div class="mb-6">
-                            <label class="block text-sm font-medium text-gray-700 mb-2">Velocidad (rpm)</label>
-                            <input type="range" id="speed-control" min="0" max="100" value="0"
-                                class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer">
-                            <div class="flex justify-between text-xs text-gray-500 mt-1">
-                                <span>0</span>
-                                <span>25</span>
-                                <span>50</span>
-                                <span>75</span>
-                                <span>100</span>
-                            </div>
-                        </div>
-
-                        <div class="grid grid-cols-2 gap-4 mb-4">
-                            <button id="move-cw"
-                                class="bg-blue-500 hover:bg-blue-600 text-white py-2 px-4 rounded transition duration-300">
-                                <i class="fas fa-rotate-right mr-2"></i> Sentido Horario
-                            </button>
-                            <button id="move-ccw"
-                                class="bg-green-500 hover:bg-green-600 text-white py-2 px-4 rounded transition duration-300">
-                                <i class="fas fa-rotate-left mr-2"></i> Antihorario
-                            </button>
-                        </div>
-
-                        <div class="grid grid-cols-2 gap-4">
-                            <button id="stop-motor"
-                                class="bg-red-500 hover:bg-red-600 text-white py-2 px-4 rounded transition duration-300">
-                                <i class="fas fa-stop mr-2"></i> Detener
-                            </button>
-                            <button id="reset-steps"
-                                class="bg-gray-500 hover:bg-gray-600 text-white py-2 px-4 rounded transition duration-300">
-                                <i class="fas fa-undo mr-2"></i> Reiniciar
-                            </button>
-                        </div>
+            <div class="card">
+                <div class="card-header">
+                    <h2 class="card-title"><i class="fas fa-tint"></i> Humedad</h2>
+                    <div class="card-icon humidity-icon">
+                        <i class="fas fa-water"></i>
                     </div>
                 </div>
+                <div class="card-value"><span id="humidity">--</span> <span class="card-unit">%</span></div>
+                <div class="trend" id="humidity-trend"><i class="fas fa-arrow-right"></i> Esperando datos</div>
+                <div class="chart-container">
+                    <canvas id="humidityChart"></canvas>
+                </div>
+            </div>
 
-                <!-- Data Table -->
-                <div class="bg-white rounded-lg shadow overflow-hidden mb-8">
-                    <div class="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
-                        <h3 class="text-lg font-semibold text-gray-800">Registro Histórico</h3>
-                        <div class="flex space-x-2">
-                            <button
-                                class="text-sm bg-blue-500 hover:bg-blue-600 text-white py-1 px-3 rounded transition duration-300">
-                                <i class="fas fa-download mr-1"></i> Exportar
-                            </button>
-                            <select class="text-sm border rounded px-2 py-1">
-                                <option>Última hora</option>
-                                <option>Últimas 24 horas</option>
-                                <option>Última semana</option>
-                            </select>
-                        </div>
-                    </div>
-                    <div class="overflow-x-auto">
-                        <table class="min-w-full divide-y divide-gray-200">
-                            <thead class="bg-gray-50">
-                                <tr>
-                                    <th scope="col"
-                                        class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                        Fecha/Hora</th>
-                                    <th scope="col"
-                                        class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                        Temperatura (°C)</th>
-                                    <th scope="col"
-                                        class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                        Humedad (%)</th>
-                                    <th scope="col"
-                                        class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                        Pasos del Motor</th>
-                                    <th scope="col"
-                                        class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                        Estado</th>
-                                </tr>
-                            </thead>
-                            <tbody class="bg-white divide-y divide-gray-200" id="data-table-body">
-                                <!-- Datos se llenarán dinámicamente -->
-                            </tbody>
-                        </table>
-                    </div>
-                    <div class="px-6 py-4 border-t border-gray-200 flex justify-between items-center">
-                        <div class="text-sm text-gray-500">
-                            Mostrando <span id="showing-from">1</span> a <span id="showing-to">5</span> de <span
-                                id="total-items">24</span> registros
-                        </div>
-                        <div class="flex space-x-2">
-                            <button class="px-3 py-1 border rounded text-sm disabled:opacity-50" id="prev-page"
-                                disabled>
-                                <i class="fas fa-chevron-left"></i>
-                            </button>
-                            <button class="px-3 py-1 border rounded text-sm bg-blue-500 text-white">1</button>
-                            <button class="px-3 py-1 border rounded text-sm">2</button>
-                            <button class="px-3 py-1 border rounded text-sm">3</button>
-                            <button class="px-3 py-1 border rounded text-sm" id="next-page">
-                                <i class="fas fa-chevron-right"></i>
-                            </button>
-                        </div>
+            <div class="card">
+                <div class="card-header">
+                    <h2 class="card-title"><i class="fas fa-cog"></i> Estado del Motor</h2>
+                    <div class="card-icon motor-icon">
+                        <i class="fas fa-fan"></i>
                     </div>
                 </div>
-            </main>
+                <div class="card-value"><span id="motorSpeed">--</span> <span class="card-unit">RPM</span></div>
+                <div class="motor-status">
+                    <span>Estado:</span>
+                    <span id="motorState" class="status-off">Apagado</span>
+                </div>
+                <div class="trend" id="motor-trend"><i class="fas fa-arrow-right"></i> Esperando datos</div>
+                <div class="chart-container">
+                    <canvas id="motorChart"></canvas>
+                </div>
+            </div>
         </div>
 
-        <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
         <script>
-            // Variables de estado
-            let currentStep = 0;
-            let motorDirection = 0; // 0: detenido, 1: horario, -1: antihorario
-            let motorSpeed = 0;
-            let stepCount = 0;
-            let temperature = 24.5;
-            let humidity = 65;
-            let lastUpdate = new Date();
-            let isMotorActive = false;
+            // Configuración de Firebase
+            const firebaseConfig = {
+                databaseURL: "https://shaker-3e6f1-default-rtdb.firebaseio.com/"
+            };
 
-            // Elementos del DOM
-            const temperatureValue = document.getElementById('temperature-value');
-            const humidityValue = document.getElementById('humidity-value');
-            const motorStatus = document.getElementById('motor-status');
-            const stepCountElement = document.getElementById('step-count');
-            const motorSpeedElement = document.getElementById('motor-speed');
-            const lastUpdateElement = document.getElementById('last-update');
-            const temperatureGauge = document.getElementById('temperature-gauge');
-            const humidityGauge = document.getElementById('humidity-gauge');
-            const temperatureGaugeValue = document.getElementById('temperature-gauge-value');
-            const humidityGaugeValue = document.getElementById('humidity-gauge-value');
-            const moveCwBtn = document.getElementById('move-cw');
-            const moveCcwBtn = document.getElementById('move-ccw');
-            const stopMotorBtn = document.getElementById('stop-motor');
-            const resetStepsBtn = document.getElementById('reset-steps');
-            const speedControl = document.getElementById('speed-control');
-            const refreshBtn = document.getElementById('refresh-btn');
-            const motorSteps = document.querySelectorAll('.motor-step');
-            const motorIcon = document.getElementById('motor-icon');
-            const temperatureBar = document.getElementById('temperature-bar');
-            const humidityBar = document.getElementById('humidity-bar');
-            const motorBar = document.getElementById('motor-bar');
+            // Inicializar Firebase
+            firebase.initializeApp(firebaseConfig);
+            const database = firebase.database();
+
+            // Variables para almacenar datos
+            const maxDataPoints = 15;
+            let timeStamps = [];
+            let tempData = [];
+            let humidityData = [];
+            let motorData = [];
+            let lastUpdateTime = null;
+
+            // Colores personalizados
+            const tempColor = '#ff6b6b';
+            const humidityColor = '#4dabf7';
+            const motorColor = '#51cf66';
 
             // Inicializar gráficos
-            const temperatureCtx = document.getElementById('temperature-chart').getContext('2d');
-            const humidityCtx = document.getElementById('humidity-chart').getContext('2d');
+            const tempCtx = document.getElementById('tempChart').getContext('2d');
+            const humidityCtx = document.getElementById('humidityChart').getContext('2d');
+            const motorCtx = document.getElementById('motorChart').getContext('2d');
 
-            const temperatureChart = new Chart(temperatureCtx, {
-                type: 'line',
-                data: {
-                    labels: Array.from({ length: 12 }, (_, i) => `${i * 5} min`),
-                    datasets: [{
-                        label: 'Temperatura (°C)',
-                        data: [22, 22.5, 23, 23.5, 24, 24.5, 24, 23.5, 23, 22.5, 22, 22.5],
-                        borderColor: '#3B82F6',
-                        backgroundColor: 'rgba(59, 130, 246, 0.1)',
-                        borderWidth: 2,
-                        fill: true,
-                        tension: 0.4
-                    }]
+            const chartOptions = {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                        titleFont: { family: 'Poppins', size: 12 },
+                        bodyFont: { family: 'Poppins', size: 12 },
+                        cornerRadius: 8,
+                        displayColors: false
+                    }
                 },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: {
-                        legend: {
-                            display: false
+                scales: {
+                    x: {
+                        grid: { display: false },
+                        ticks: { 
+                            font: { family: 'Poppins' },
+                            maxTicksLimit: 5
                         }
                     },
-                    scales: {
-                        y: {
-                            beginAtZero: false,
-                            min: 20,
-                            max: 26
-                        }
+                    y: {
+                        grid: { color: 'rgba(0, 0, 0, 0.05)' },
+                        ticks: { font: { family: 'Poppins' } }
                     }
+                },
+                elements: {
+                    line: {
+                        tension: 0.4,
+                        borderWidth: 3
+                    },
+                    point: {
+                        radius: 0,
+                        hoverRadius: 6
+                    }
+                },
+                animation: {
+                    duration: 500
                 }
+            };
+
+            const tempChart = new Chart(tempCtx, {
+                type: 'line',
+                data: {
+                    labels: timeStamps,
+                    datasets: [{
+                        data: tempData,
+                        borderColor: tempColor,
+                        backgroundColor: 'rgba(255, 107, 107, 0.1)',
+                        fill: true,
+                        borderCapStyle: 'round',
+                        borderJoinStyle: 'round'
+                    }]
+                },
+                options: chartOptions
             });
 
             const humidityChart = new Chart(humidityCtx, {
                 type: 'line',
                 data: {
-                    labels: Array.from({ length: 12 }, (_, i) => `${i * 5} min`),
+                    labels: timeStamps,
                     datasets: [{
-                        label: 'Humedad (%)',
-                        data: [60, 61, 62, 63, 64, 65, 64, 63, 62, 61, 60, 61],
-                        borderColor: '#10B981',
-                        backgroundColor: 'rgba(16, 185, 129, 0.1)',
-                        borderWidth: 2,
+                        data: humidityData,
+                        borderColor: humidityColor,
+                        backgroundColor: 'rgba(77, 171, 247, 0.1)',
                         fill: true,
-                        tension: 0.4
+                        borderCapStyle: 'round',
+                        borderJoinStyle: 'round'
                     }]
                 },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: {
-                        legend: {
-                            display: false
-                        }
-                    },
-                    scales: {
-                        y: {
-                            beginAtZero: false,
-                            min: 55,
-                            max: 70
-                        }
-                    }
-                }
+                options: chartOptions
             });
 
-            // Llenar tabla con datos de ejemplo
-            const tableBody = document.getElementById('data-table-body');
-            const sampleData = [
-                { date: '2023-06-01 10:00', temp: 22.5, hum: 60, steps: 0, status: 'Inactivo' },
-                { date: '2023-06-01 10:05', temp: 23.0, hum: 61, steps: 120, status: 'Horario' },
-                { date: '2023-06-01 10:10', temp: 23.5, hum: 62, steps: 240, status: 'Horario' },
-                { date: '2023-06-01 10:15', temp: 24.0, hum: 63, steps: 0, status: 'Inactivo' },
-                { date: '2023-06-01 10:20', temp: 24.5, hum: 65, steps: -80, status: 'Antihorario' }
-            ];
+            const motorChart = new Chart(motorCtx, {
+                type: 'line',
+                data: {
+                    labels: timeStamps,
+                    datasets: [{
+                        data: motorData,
+                        borderColor: motorColor,
+                        backgroundColor: 'rgba(81, 207, 102, 0.1)',
+                        fill: true,
+                        borderCapStyle: 'round',
+                        borderJoinStyle: 'round'
+                    }]
+                },
+                options: chartOptions
+            });
 
-            function populateTable() {
-                tableBody.innerHTML = '';
-                sampleData.forEach(data => {
-                    const row = document.createElement('tr');
-                    row.innerHTML = `
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${data.date}</td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${data.temp}</td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${data.hum}</td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${data.steps}</td>
-                    <td class="px-6 py-4 whitespace-nowrap">
-                        <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full 
-                            ${data.status === 'Horario' ? 'bg-blue-100 text-blue-800' :
-                            data.status === 'Antihorario' ? 'bg-green-100 text-green-800' :
-                                'bg-gray-100 text-gray-800'}">
-                            ${data.status}
-                        </span>
-                    </td>
-                `;
-                    tableBody.appendChild(row);
-                });
+            // Función para determinar la tendencia
+            function getTrendIcon(current, previous) {
+                if (current > previous) return '<i class="fas fa-arrow-up"></i> Subiendo';
+                if (current < previous) return '<i class="fas fa-arrow-down"></i> Bajando';
+                return '<i class="fas fa-arrow-right"></i> Estable';
             }
 
-            // Funciones de control del motor
-            function updateMotor() {
-                // Actualizar pasos del motor
-                if (motorDirection !== 0) {
-                    currentStep = (currentStep + motorDirection + 4) % 4;
-                    stepCount += motorDirection;
+            // Función para actualizar los datos desde Firebase
+            function updateDataFromFirebase(snapshot) {
+                const data = snapshot.val();
+                if (!data) return;
 
-                    // Actualizar UI de pasos
-                    motorSteps.forEach(step => {
-                        step.classList.remove('active');
-                        if (parseInt(step.dataset.step) === currentStep + 1) {
-                            step.classList.add('active');
-                        }
-                    });
+                const now = new Date();
+                const timeString = now.getHours() + ':' + now.getMinutes().toString().padStart(2, '0');
 
-                    // Actualizar icono del motor
-                    motorIcon.style.transform = `rotate(${stepCount * 9}deg)`;
+                // Obtener datos de la estructura de Firebase
+                const temperature = data.sensor?.temperatura || 0;
+                const humidity = data.sensor?.humedad || 0;
+                const motorSpeed = data.motor?.rpm || 0;
+                const motorState = data.motor?.encendido || false;
+                const motorPosition = data.motor?.posicion || 0;
 
-                    // Actualizar contador de pasos
-                    stepCountElement.textContent = Math.abs(stepCount);
+                // Guardar valores anteriores para tendencias
+                const prevTemp = tempData.length > 0 ? tempData[tempData.length - 1] : temperature;
+                const prevHumidity = humidityData.length > 0 ? humidityData[humidityData.length - 1] : humidity;
+                const prevMotor = motorData.length > 0 ? motorData[motorData.length - 1] : motorSpeed;
 
-                    // Actualizar barra de progreso del motor
-                    const progress = Math.min(100, Math.abs(stepCount) / 10);
-                    motorBar.style.width = `${progress}%`;
+                // Actualizar arrays de datos
+                timeStamps.push(timeString);
+                tempData.push(temperature);
+                humidityData.push(humidity);
+                motorData.push(motorSpeed);
+
+                // Limitar el número de puntos de datos
+                if (timeStamps.length > maxDataPoints) {
+                    timeStamps.shift();
+                    tempData.shift();
+                    humidityData.shift();
+                    motorData.shift();
                 }
+
+                // Actualizar valores mostrados
+                document.getElementById('temperature').textContent = temperature.toFixed(1);
+                document.getElementById('humidity').textContent = humidity.toFixed(1);
+                document.getElementById('motorSpeed').textContent = motorSpeed;
 
                 // Actualizar estado del motor
-                if (motorDirection === 1) {
-                    motorStatus.textContent = 'Horario';
-                    motorStatus.className = 'text-blue-500';
-                } else if (motorDirection === -1) {
-                    motorStatus.textContent = 'Antihorario';
-                    motorStatus.className = 'text-green-500';
+                const motorStateElement = document.getElementById('motorState');
+                if (motorState) {
+                    motorStateElement.textContent = 'Encendido';
+                    motorStateElement.className = 'status-on';
+                    document.querySelector('.motor-icon').classList.add('pulse');
                 } else {
-                    motorStatus.textContent = 'Inactivo';
-                    motorStatus.className = 'text-gray-500';
+                    motorStateElement.textContent = 'Apagado';
+                    motorStateElement.className = 'status-off';
+                    document.querySelector('.motor-icon').classList.remove('pulse');
                 }
 
-                // Actualizar velocidad del motor
-                motorSpeedElement.textContent = motorSpeed;
-            }
+                // Actualizar tendencias
+                document.getElementById('temp-trend').innerHTML = getTrendIcon(temperature, prevTemp);
+                document.getElementById('humidity-trend').innerHTML = getTrendIcon(humidity, prevHumidity);
+                document.getElementById('motor-trend').innerHTML = getTrendIcon(motorSpeed, prevMotor);
 
-            // Event listeners
-            moveCwBtn.addEventListener('click', () => {
-                motorDirection = 1;
-                isMotorActive = true;
-                updateMotor();
-            });
+                // Añadir clases de color según tendencia
+                updateTrendStyle('temp-trend', temperature, prevTemp);
+                updateTrendStyle('humidity-trend', humidity, prevHumidity);
+                updateTrendStyle('motor-trend', motorSpeed, prevMotor);
 
-            moveCcwBtn.addEventListener('click', () => {
-                motorDirection = -1;
-                isMotorActive = true;
-                updateMotor();
-            });
-
-            stopMotorBtn.addEventListener('click', () => {
-                motorDirection = 0;
-                isMotorActive = false;
-                updateMotor();
-            });
-
-            resetStepsBtn.addEventListener('click', () => {
-                stepCount = 0;
-                updateMotor();
-            });
-
-            speedControl.addEventListener('input', () => {
-                motorSpeed = speedControl.value;
-                updateMotor();
-            });
-
-            refreshBtn.addEventListener('click', () => {
-                // Simular nuevos datos
-                temperature = (24 + Math.random() * 2).toFixed(1);
-                humidity = Math.round(60 + Math.random() * 10);
-                lastUpdate = new Date();
-
-                // Actualizar UI
-                temperatureValue.textContent = temperature;
-                humidityValue.textContent = humidity;
-                temperatureGaugeValue.textContent = `${temperature}°C`;
-                humidityGaugeValue.textContent = `${humidity}%`;
-
-                // Actualizar medidores
-                const tempPercent = ((temperature - 18) / (32 - 18)) * 180;
-                const humPercent = ((humidity - 30) / (90 - 30)) * 180;
-                temperatureGauge.style.transform = `rotate(${tempPercent / 180}turn)`;
-                humidityGauge.style.transform = `rotate(${humPercent / 180}turn)`;
-
-                // Actualizar barras de progreso
-                temperatureBar.style.width = `${(tempPercent / 180) * 100}%`;
-                humidityBar.style.width = `${(humPercent / 180) * 100}%`;
-
-                // Actualizar gráficos con datos aleatorios
-                temperatureChart.data.datasets[0].data = temperatureChart.data.datasets[0].data.map(() =>
-                    22 + Math.random() * 4
-                );
-                temperatureChart.update();
-
-                humidityChart.data.datasets[0].data = humidityChart.data.datasets[0].data.map(() =>
-                    60 + Math.random() * 10
-                );
-                humidityChart.update();
+                // Actualizar gráficos
+                updateChart(tempChart, timeStamps, tempData);
+                updateChart(humidityChart, timeStamps, humidityData);
+                updateChart(motorChart, timeStamps, motorData);
 
                 // Actualizar última actualización
-                lastUpdateElement.textContent = 'Ahora mismo';
+                lastUpdateTime = new Date();
+                document.getElementById('last-update').innerHTML = 
+                    `<i class="fas fa-clock"></i> Última actualización: ${lastUpdateTime.toLocaleTimeString()}`;
 
-                // Resetear después de 5 segundos
-                setTimeout(() => {
-                    lastUpdateElement.textContent = 'Hace unos segundos';
-                }, 5000);
-            });
+                // Actualizar estado de conexión
+                updateConnectionStatus(true);
+            }
 
-            // Inicialización
-            populateTable();
-            updateMotor();
+            function updateTrendStyle(elementId, current, previous) {
+                const element = document.getElementById(elementId);
+                element.classList.remove('up', 'down');
 
-            // Simular datos en tiempo real
-            setInterval(() => {
-                if (isMotorActive) {
-                    updateMotor();
+                if (current > previous) element.classList.add('up');
+                if (current < previous) element.classList.add('down');
+            }
+
+            function updateChart(chart, labels, data) {
+                chart.data.labels = labels;
+                chart.data.datasets[0].data = data;
+                chart.update('active');
+            }
+
+            function updateConnectionStatus(connected) {
+                const badge = document.getElementById('status-badge');
+                const indicator = document.getElementById('status-indicator');
+                const text = document.getElementById('connection-text');
+
+                if (connected) {
+                    badge.classList.remove('disconnected');
+                    badge.classList.add('connected');
+                    indicator.classList.remove('disconnected');
+                    indicator.classList.add('connected');
+                    text.textContent = 'Conectado a Firebase';
+                } else {
+                    badge.classList.remove('connected');
+                    badge.classList.add('disconnected');
+                    indicator.classList.remove('connected');
+                    indicator.classList.add('disconnected');
+                    text.textContent = 'Desconectado';
                 }
-            }, 1000 / (motorSpeed || 1));
+            }
+
+            // Función para verificar si hay datos recientes
+            function checkDataFreshness() {
+                if (!lastUpdateTime) return;
+
+                const now = new Date();
+                const diff = now - lastUpdateTime;
+                const minutesDiff = Math.floor(diff / 60000);
+
+                if (minutesDiff > 2) { // Más de 2 minutos sin actualización
+                    updateConnectionStatus(false);
+                    document.getElementById('last-update').innerHTML = 
+                        `<i class="fas fa-exclamation-triangle"></i> Datos desactualizados (${minutesDiff} min)`;
+                }
+            }
+
+            // Escuchar cambios en la base de datos de Firebase
+            function startFirebaseListener() {
+                const dataRef = database.ref('/');
+                
+                dataRef.on('value', (snapshot) => {
+                    updateDataFromFirebase(snapshot);
+                }, (error) => {
+                    console.error('Error en Firebase:', error);
+                    updateConnectionStatus(false);
+                });
+
+                // Verificar frescura de datos cada minuto
+                setInterval(checkDataFreshness, 60000);
+            }
+
+            // Inicializar la aplicación
+            function initApp() {
+                try {
+                    startFirebaseListener();
+                    console.log('Dashboard inicializado correctamente');
+                } catch (error) {
+                    console.error('Error al inicializar la aplicación:', error);
+                    updateConnectionStatus(false);
+                }
+            }
+
+            // Iniciar cuando el documento esté listo
+            document.addEventListener('DOMContentLoaded', initApp);
+
+            // Manejar errores no capturados
+            window.addEventListener('error', (event) => {
+                console.error('Error global:', event.error);
+                updateConnectionStatus(false);
+            });
         </script>
     </body>
 </html>
