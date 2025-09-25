@@ -545,12 +545,7 @@
             const motorSpeed = data.motor?.rpm || 0;
             const motorState = data.motor?.encendido || false;
             const motorPosition = data.motor?.posicion || 0;
-
-            // Calcular vueltas (asumiendo que la posición se incrementa)
-            const currentRotation = Math.floor(motorPosition / 360); // Convertir posición a vueltas completas
-            if (currentRotation > 0) {
-                totalRotations = currentRotation; // Actualizar total acumulado
-            }
+            const totalRotations = data.motor?.vueltas || 0;
 
             // Guardar valores anteriores para tendencias
             const prevTemp = tempData.length > 0 ? tempData[tempData.length - 1] : temperature;
