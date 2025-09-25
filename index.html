@@ -10,7 +10,64 @@
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
-        /* --- Estilos omitidos por brevedad (puedes copiar los tuyos) --- */
+        :root {
+            --primary: #4361ee;
+            --secondary: #3f37c9;
+            --accent: #4895ef;
+            --danger: #f72585;
+            --success: #4cc9f0;
+            --warning: #f8961e;
+            --dark: #212529;
+            --light: #f8f9fa;
+        }
+        * { box-sizing: border-box; margin:0; padding:0; }
+        body { font-family: 'Poppins', sans-serif; background: linear-gradient(135deg,#f5f7fa,#e4e8f0); color: var(--dark); min-height:100vh; padding:2rem; }
+        .dashboard { max-width:1400px; margin:0 auto; display:grid; grid-template-columns:repeat(auto-fit,minmax(300px,1fr)); gap:1.5rem; }
+
+        .header {
+            grid-column: 1 / -1;
+            background:white; border-radius:1rem; padding:1.5rem; box-shadow:0 10px 30px rgba(0,0,0,0.05);
+            display:flex; justify-content:space-between; align-items:center; animation: fadeIn 0.8s ease-out;
+        }
+        .header-content { display:flex; flex-direction:column; gap:0.5rem; }
+        .header h1 { font-weight:600; color: var(--primary); display:flex; align-items:center; gap:0.8rem; }
+        .header h1 i { color: var(--accent); }
+        .header-controls { display:flex; align-items:center; gap:1rem; }
+        .status-badge { display:flex; align-items:center; gap:0.6rem; background: rgba(67,97,238,0.1); padding:0.6rem 1.2rem; border-radius:2rem; font-weight:500; transition: all 0.3s ease; }
+        .status-badge.connected { background: rgba(76,201,240,0.1); color: var(--success); }
+        .status-badge.disconnected { background: rgba(247,37,133,0.1); color: var(--danger); }
+        .status-indicator { width:12px; height:12px; border-radius:50%; display:inline-block; }
+        .status-indicator.connected { background: var(--success); box-shadow:0 0 10px var(--success); }
+        .status-indicator.disconnected { background: var(--danger); box-shadow:0 0 10px var(--danger); }
+        .last-update { font-size:0.9rem; color:#6c757d; background: rgba(108,117,125,0.1); padding:0.4rem 0.8rem; border-radius:1rem; }
+
+        .card { background:white; border-radius:1rem; padding:1.5rem; box-shadow:0 10px 30px rgba(0,0,0,0.05); transition: transform 0.3s ease, box-shadow 0.3s ease; animation: fadeIn 0.8s ease-out; animation-fill-mode: backwards; }
+        .card:hover { transform: translateY(-5px); box-shadow:0 15px 35px rgba(0,0,0,0.1); }
+        .card:nth-child(2){animation-delay:0.1s;}
+        .card:nth-child(3){animation-delay:0.2s;}
+        .card:nth-child(4){animation-delay:0.3s;}
+        .card:nth-child(5){animation-delay:0.4s;}
+        .card-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem; }
+        .card-title { font-weight:500; color: var(--secondary); display:flex; align-items:center; gap:0.6rem; }
+        .card-icon { width:2.5rem; height:2.5rem; border-radius:0.8rem; display:flex; align-items:center; justify-content:center; color:white; }
+        .temp-icon { background: linear-gradient(135deg,#ff9a9e,#fad0c4); }
+        .humidity-icon { background: linear-gradient(135deg,#a1c4fd,#c2e9fb); }
+        .motor-icon { background: linear-gradient(135deg,#84fab0,#8fd3f4); }
+        .rotation-icon { background: linear-gradient(135deg,#ffd89b,#19547b); }
+        .card-value { font-size:2.5rem; font-weight:600; margin:1rem 0; color: var(--dark); }
+        .card-unit { font-size:1rem; color: var(--accent); font-weight:500; }
+        .chart-container { position:relative; height:200px; width:100%; margin-top:1rem; }
+        .trend { display:flex; align-items:center; font-size:0.9rem; color:#6c757d; }
+        .trend.up { color: var(--danger); }
+        .trend.down { color: var(--success); }
+        .motor-status { display:flex; align-items:center; gap:0.5rem; margin-top:0.5rem; }
+        .status-on { color: var(--success); font-weight:500; }
+        .status-off { color: var(--danger); font-weight:500; }
+        .rotation-info { display:flex; justify-content:space-between; margin-top:0.5rem; font-size:0.9rem; color:#6c757d; }
+        .pulse { animation: pulse 2s infinite; }
+        @keyframes fadeIn { from {opacity:0; transform:translateY(20px);} to {opacity:1; transform:translateY(0);} }
+        @keyframes pulse { 0% {transform:scale(1);} 50%{transform:scale(1.05);} 100%{transform:scale(1);} }
+        @media(max-width:768px){ .dashboard{grid-template-columns:1fr;} .header{flex-direction:column; gap:1rem; text-align:center;} .header-controls{flex-direction:column; width:100%; margin-top:1rem;} }
     </style>
 </head>
 <body>
@@ -31,7 +88,7 @@
             </div>
         </header>
 
-        <!-- Tarjetas de sensores -->
+        <!-- Tarjetas -->
         <div class="card">
             <div class="card-header">
                 <h2 class="card-title"><i class="fas fa-temperature-high"></i> Temperatura</h2>
@@ -82,134 +139,16 @@
     </div>
 
     <script>
-        // Configuración Firebase
+        // --- Configuración Firebase ---
         const firebaseConfig = { databaseURL: "https://shaker-3e6f1-default-rtdb.firebaseio.com/" };
         firebase.initializeApp(firebaseConfig);
         const database = firebase.database();
 
         const maxDataPoints = 15;
-        let timeStamps = [], tempData = [], humidityData = [], motorData = [], rotationData = [];
-        let lastUpdateTime = null;
+        let timeStamps=[], tempData=[], humidityData=[], motorData=[], rotationData=[];
+        let lastUpdateTime=null;
 
-        // Gráficos
-        const tempChart = new Chart(document.getElementById('tempChart').getContext('2d'), {
-            type: 'line', data: { labels: timeStamps, datasets: [{ data: tempData, borderColor: '#ff6b6b', backgroundColor: 'rgba(255,107,107,0.1)', fill: true }] }, options: { responsive: true, maintainAspectRatio: false }
-        });
-        const humidityChart = new Chart(document.getElementById('humidityChart').getContext('2d'), {
-            type: 'line', data: { labels: timeStamps, datasets: [{ data: humidityData, borderColor: '#4dabf7', backgroundColor: 'rgba(77,171,247,0.1)', fill: true }] }, options: { responsive: true, maintainAspectRatio: false }
-        });
-        const motorChart = new Chart(document.getElementById('motorChart').getContext('2d'), {
-            type: 'line', data: { labels: timeStamps, datasets: [{ data: motorData, borderColor: '#51cf66', backgroundColor: 'rgba(81,207,102,0.1)', fill: true }] }, options: { responsive: true, maintainAspectRatio: false }
-        });
-        const rotationChart = new Chart(document.getElementById('rotationChart').getContext('2d'), {
-            type: 'line', data: { labels: timeStamps, datasets: [{ data: rotationData, borderColor: '#ff922b', backgroundColor: 'rgba(255,146,43,0.1)', fill: true }] }, options: { responsive: true, maintainAspectRatio: false }
-        });
-
-        function getTrendIcon(current, previous) {
-            if (current > previous) return '<i class="fas fa-arrow-up"></i> Subiendo';
-            if (current < previous) return '<i class="fas fa-arrow-down"></i> Bajando';
-            return '<i class="fas fa-arrow-right"></i> Estable';
-        }
-
-        function updateTrendStyle(elementId, current, previous) {
-            const element = document.getElementById(elementId);
-            element.classList.remove('up', 'down');
-            if (current > previous) element.classList.add('up');
-            if (current < previous) element.classList.add('down');
-        }
-
-        function updateChart(chart, labels, data) {
-            chart.data.labels = labels;
-            chart.data.datasets[0].data = data;
-            chart.update('active');
-        }
-
-        function updateConnectionStatus(connected) {
-            const badge = document.getElementById('status-badge');
-            const indicator = document.getElementById('status-indicator');
-            const text = document.getElementById('connection-text');
-            if (connected) {
-                badge.classList.replace('disconnected','connected');
-                indicator.classList.replace('disconnected','connected');
-                text.textContent = 'Conectado a Firebase';
-            } else {
-                badge.classList.replace('connected','disconnected');
-                indicator.classList.replace('connected','disconnected');
-                text.textContent = 'Desconectado';
-            }
-        }
-
-        function updateDataFromFirebase(snapshot) {
-            const data = snapshot.val();
-            if (!data) return;
-            const now = new Date();
-            const timeString = now.getHours() + ':' + now.getMinutes().toString().padStart(2,'0');
-
-            const temperature = data.sensor?.temperatura || 0;
-            const humidity = data.sensor?.humedad || 0;
-            const motorSpeed = data.motor?.rpm || 0;
-            const motorState = data.motor?.encendido || false;
-            const currentRotation = data.motor?.posicion || 0;
-            const totalRotationsFromDB = data.motor?.vueltas || 0;
-
-            const prevTemp = tempData.length>0?tempData[tempData.length-1]:temperature;
-            const prevHumidity = humidityData.length>0?humidityData[humidityData.length-1]:humidity;
-            const prevMotor = motorData.length>0?motorData[motorData.length-1]:motorSpeed;
-            const prevRotation = rotationData.length>0?rotationData[rotationData.length-1]:currentRotation;
-
-            timeStamps.push(timeString); tempData.push(temperature); humidityData.push(humidity);
-            motorData.push(motorSpeed); rotationData.push(currentRotation);
-
-            if(timeStamps.length>maxDataPoints){timeStamps.shift();tempData.shift();humidityData.shift();motorData.shift();rotationData.shift();}
-
-            document.getElementById('temperature').textContent = temperature.toFixed(1);
-            document.getElementById('humidity').textContent = humidity.toFixed(1);
-            document.getElementById('motorSpeed').textContent = motorSpeed;
-            document.getElementById('motorRotation').textContent = currentRotation;
-            document.getElementById('totalRotations').textContent = totalRotationsFromDB;
-
-            const motorStateElement = document.getElementById('motorState');
-            if(motorState){motorStateElement.textContent='Encendido'; motorStateElement.className='status-on'; document.querySelector('.motor-icon').classList.add('pulse'); document.querySelector('.rotation-icon').classList.add('pulse');}
-            else {motorStateElement.textContent='Apagado'; motorStateElement.className='status-off'; document.querySelector('.motor-icon').classList.remove('pulse'); document.querySelector('.rotation-icon').classList.remove('pulse');}
-
-            document.getElementById('temp-trend').innerHTML = getTrendIcon(temperature,prevTemp);
-            document.getElementById('humidity-trend').innerHTML = getTrendIcon(humidity,prevHumidity);
-            document.getElementById('motor-trend').innerHTML = getTrendIcon(motorSpeed,prevMotor);
-            document.getElementById('rotation-trend').innerHTML = getTrendIcon(currentRotation,prevRotation);
-
-            updateTrendStyle('temp-trend',temperature,prevTemp);
-            updateTrendStyle('humidity-trend',humidity,prevHumidity);
-            updateTrendStyle('motor-trend',motorSpeed,prevMotor);
-            updateTrendStyle('rotation-trend',currentRotation,prevRotation);
-
-            updateChart(tempChart,timeStamps,tempData);
-            updateChart(humidityChart,timeStamps,humidityData);
-            updateChart(motorChart,timeStamps,motorData);
-            updateChart(rotationChart,timeStamps,rotationData);
-
-            lastUpdateTime = new Date();
-            document.getElementById('last-update').innerHTML = `<i class="fas fa-clock"></i> Última actualización: ${lastUpdateTime.toLocaleTimeString()}`;
-            updateConnectionStatus(true);
-        }
-
-        function checkDataFreshness() {
-            if(!lastUpdateTime) return;
-            const diff = new Date()-lastUpdateTime;
-            const minutesDiff = Math.floor(diff/60000);
-            if(minutesDiff>2){
-                updateConnectionStatus(false);
-                document.getElementById('last-update').innerHTML = `<i class="fas fa-exclamation-triangle"></i> Datos desactualizados (${minutesDiff} min)`;
-            }
-        }
-
-        function startFirebaseListener() {
-            const dataRef = database.ref('/');
-            dataRef.on('value',(snapshot)=>{updateDataFromFirebase(snapshot);}, (error)=>{console.error(error); updateConnectionStatus(false);});
-            setInterval(checkDataFreshness,60000);
-        }
-
-        document.addEventListener('DOMContentLoaded',()=>{startFirebaseListener(); console.log('Dashboard inicializado correctamente');});
-        window.addEventListener('error',(event)=>{console.error('Error global:', event.error); updateConnectionStatus(false);});
-    </script>
-</body>
-</html>
+        const tempChart = new Chart(document.getElementById('tempChart').getContext('2d'), { type:'line', data:{labels:timeStamps,datasets:[{data:tempData,borderColor:'#ff6b6b',backgroundColor:'rgba(255,107,107,0.1)',fill:true}]}, options:{responsive:true,maintainAspectRatio:false}});
+        const humidityChart = new Chart(document.getElementById('humidityChart').getContext('2d'), { type:'line', data:{labels:timeStamps,datasets:[{data:humidityData,borderColor:'#4dabf7',backgroundColor:'rgba(77,171,247,0.1)',fill:true}]}, options:{responsive:true,maintainAspectRatio:false}});
+        const motorChart = new Chart(document.getElementById('motorChart').getContext('2d'), { type:'line', data:{labels:timeStamps,datasets:[{data:motorData,borderColor:'#51cf66',backgroundColor:'rgba(81,207,102,0.1)',fill:true}]}, options:{responsive:true,maintainAspectRatio:false}});
+        const rotationChart = new Chart(document.getElementById('rotationChart').getContext('2d'), { type:'line', data:{labels:timeStamps,datasets:[{data:rotationData,borderColor:'#ff922b',backgroundColor:'rgba(255,146,43,0.1)',fill
