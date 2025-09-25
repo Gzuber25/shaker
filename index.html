@@ -1,85 +1,43 @@
-let totalRotations = 0; // variable global para acumular vueltas
+let totalRotations = 0; // Total acumulado desde que inició la sesión
 
 function updateDataFromFirebase(snapshot) {
     const data = snapshot.val();
     if (!data) return;
 
     const now = new Date();
-    const timeString = now.getHours() + ':' + now.getMinutes().toString().padStart(2, '0');
+    const timeString = now.getHours() + ':' + now.getMinutes().toString().padStart(2,'0');
 
-    // Obtener datos de Firebase
     const temperature = data.sensor?.temperatura || 0;
     const humidity = data.sensor?.humedad || 0;
     const motorSpeed = data.motor?.rpm || 0;
     const motorState = data.motor?.encendido || false;
-    const rotations = data.motor?.vueltas || 0; // vueltas detectadas en este instante
+    const vueltasActuales = data.motor?.vueltas || 0; // lectura actual de vueltas
 
     // Guardar valores anteriores para tendencias
-    const prevTemp = tempData.length > 0 ? tempData[tempData.length - 1] : temperature;
-    const prevHumidity = humidityData.length > 0 ? humidityData[humidityData.length - 1] : humidity;
-    const prevMotor = motorData.length > 0 ? motorData[motorData.length - 1] : motorSpeed;
-    const prevRotation = rotationData.length > 0 ? rotationData[rotationData.length - 1] : rotations;
+    const prevRotation = rotationData.length > 0 ? rotationData[rotationData.length - 1] : vueltasActuales;
 
     // Actualizar arrays de datos
     timeStamps.push(timeString);
-    tempData.push(temperature);
-    humidityData.push(humidity);
-    motorData.push(motorSpeed);
-    rotationData.push(rotations);
-
-    if (timeStamps.length > maxDataPoints) {
+    rotationData.push(vueltasActuales);
+    if (rotationData.length > maxDataPoints) {
         timeStamps.shift();
-        tempData.shift();
-        humidityData.shift();
-        motorData.shift();
         rotationData.shift();
     }
 
-    // Actualizar valores en la UI
-    document.getElementById('temperature').textContent = temperature.toFixed(1);
-    document.getElementById('humidity').textContent = humidity.toFixed(1);
-    document.getElementById('motorSpeed').textContent = motorSpeed;
-    document.getElementById('motorRotation').textContent = rotations;
+    // Actualizar total acumulado (si quieres acumular desde la primera lectura)
+    totalRotations += (vueltasActuales - prevRotation); 
+    if (totalRotations < 0) totalRotations = vueltasActuales; // por si resetea el contador
 
-    // Actualizar total acumulado
-    totalRotations = rotations; // si quieres acumular desde cero en cada sesión, sino puedes sumarlo
+    // Actualizar la UI
+    document.getElementById('motorRotation').textContent = vueltasActuales;
     document.getElementById('totalRotations').textContent = totalRotations;
 
-    // Estado del motor
-    const motorStateElement = document.getElementById('motorState');
-    if (motorState) {
-        motorStateElement.textContent = 'Encendido';
-        motorStateElement.className = 'status-on';
-        document.querySelector('.motor-icon').classList.add('pulse');
-        document.querySelector('.rotation-icon').classList.add('pulse');
-    } else {
-        motorStateElement.textContent = 'Apagado';
-        motorStateElement.className = 'status-off';
-        document.querySelector('.motor-icon').classList.remove('pulse');
-        document.querySelector('.rotation-icon').classList.remove('pulse');
-    }
+    // Actualizar tendencias
+    document.getElementById('rotation-trend').innerHTML = getTrendIcon(vueltasActuales, prevRotation);
+    updateTrendStyle('rotation-trend', vueltasActuales, prevRotation);
 
-    // Tendencias
-    document.getElementById('temp-trend').innerHTML = getTrendIcon(temperature, prevTemp);
-    document.getElementById('humidity-trend').innerHTML = getTrendIcon(humidity, prevHumidity);
-    document.getElementById('motor-trend').innerHTML = getTrendIcon(motorSpeed, prevMotor);
-    document.getElementById('rotation-trend').innerHTML = getTrendIcon(rotations, prevRotation);
-
-    updateTrendStyle('temp-trend', temperature, prevTemp);
-    updateTrendStyle('humidity-trend', humidity, prevHumidity);
-    updateTrendStyle('motor-trend', motorSpeed, prevMotor);
-    updateTrendStyle('rotation-trend', rotations, prevRotation);
-
-    // Actualizar gráficos
-    updateChart(tempChart, timeStamps, tempData);
-    updateChart(humidityChart, timeStamps, humidityData);
-    updateChart(motorChart, timeStamps, motorData);
+    // Actualizar gráfico
     updateChart(rotationChart, timeStamps, rotationData);
 
-    // Última actualización
-    lastUpdateTime = new Date();
-    document.getElementById('last-update').innerHTML = 
-        `<i class="fas fa-clock"></i> Última actualización: ${lastUpdateTime.toLocaleTimeString()}`;
-
-    updateConnectionStatus(true);
+    // --- resto de tu código de actualización de motor, temperatura y humedad ---
 }
