@@ -1,639 +1,710 @@
 <!DOCTYPE html>
 <html lang="es">
-    <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Dashboard ESP32 - Shaker</title>
-        <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-        <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
-        <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
-        <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600&display=swap" rel="stylesheet">
-        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-        <style>
-            :root {
-                --primary: #4361ee;
-                --secondary: #3f37c9;
-                --accent: #4895ef;
-                --danger: #f72585;
-                --success: #4cc9f0;
-                --warning: #f8961e;
-                --dark: #212529;
-                --light: #f8f9fa;
-            }
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard ESP32 - Shaker</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        :root {
+            --primary: #4361ee;
+            --secondary: #3f37c9;
+            --accent: #4895ef;
+            --danger: #f72585;
+            --success: #4cc9f0;
+            --warning: #f8961e;
+            --dark: #212529;
+            --light: #f8f9fa;
+        }
 
-            * {
-                box-sizing: border-box;
-                margin: 0;
-                padding: 0;
-            }
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
 
-            body {
-                font-family: 'Poppins', sans-serif;
-                background: linear-gradient(135deg, #f5f7fa 0%, #e4e8f0 100%);
-                color: var(--dark);
-                min-height: 100vh;
-                padding: 2rem;
-            }
+        body {
+            font-family: 'Poppins', sans-serif;
+            background: linear-gradient(135deg, #f5f7fa 0%, #e4e8f0 100%);
+            color: var(--dark);
+            min-height: 100vh;
+            padding: 2rem;
+        }
 
+        .dashboard {
+            max-width: 1400px;
+            margin: 0 auto;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 1.5rem;
+        }
+
+        .header {
+            grid-column: 1 / -1;
+            background: white;
+            border-radius: 1rem;
+            padding: 1.5rem;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.05);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            animation: fadeIn 0.8s ease-out;
+        }
+
+        .header-content {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .header h1 {
+            font-weight: 600;
+            color: var(--primary);
+            display: flex;
+            align-items: center;
+            gap: 0.8rem;
+        }
+
+        .header h1 i {
+            color: var(--accent);
+        }
+
+        .header-controls {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .status-badge {
+            display: flex;
+            align-items: center;
+            gap: 0.6rem;
+            background: rgba(67, 97, 238, 0.1);
+            padding: 0.6rem 1.2rem;
+            border-radius: 2rem;
+            font-weight: 500;
+            transition: all 0.3s ease;
+        }
+
+        .status-badge.connected {
+            background: rgba(76, 201, 240, 0.1);
+            color: var(--success);
+        }
+
+        .status-badge.disconnected {
+            background: rgba(247, 37, 133, 0.1);
+            color: var(--danger);
+        }
+
+        .status-indicator {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            display: inline-block;
+        }
+
+        .status-indicator.connected {
+            background: var(--success);
+            box-shadow: 0 0 10px var(--success);
+        }
+
+        .status-indicator.disconnected {
+            background: var(--danger);
+            box-shadow: 0 0 10px var(--danger);
+        }
+
+        .last-update {
+            font-size: 0.9rem;
+            color: #6c757d;
+            background: rgba(108, 117, 125, 0.1);
+            padding: 0.4rem 0.8rem;
+            border-radius: 1rem;
+        }
+
+        .card {
+            background: white;
+            border-radius: 1rem;
+            padding: 1.5rem;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.05);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+            animation: fadeIn 0.8s ease-out;
+            animation-fill-mode: backwards;
+        }
+
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.1);
+        }
+
+        .card:nth-child(2) {
+            animation-delay: 0.1s;
+        }
+
+        .card:nth-child(3) {
+            animation-delay: 0.2s;
+        }
+
+        .card:nth-child(4) {
+            animation-delay: 0.3s;
+        }
+
+        .card:nth-child(5) {
+            animation-delay: 0.4s;
+        }
+
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+        }
+
+        .card-title {
+            font-weight: 500;
+            color: var(--secondary);
+            display: flex;
+            align-items: center;
+            gap: 0.6rem;
+        }
+
+        .card-icon {
+            width: 2.5rem;
+            height: 2.5rem;
+            border-radius: 0.8rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+        }
+
+        .temp-icon {
+            background: linear-gradient(135deg, #ff9a9e 0%, #fad0c4 100%);
+        }
+
+        .humidity-icon {
+            background: linear-gradient(135deg, #a1c4fd 0%, #c2e9fb 100%);
+        }
+
+        .motor-icon {
+            background: linear-gradient(135deg, #84fab0 0%, #8fd3f4 100%);
+        }
+
+        .rotation-icon {
+            background: linear-gradient(135deg, #ffd89b 0%, #19547b 100%);
+        }
+
+        .card-value {
+            font-size: 2.5rem;
+            font-weight: 600;
+            margin: 1rem 0;
+            color: var(--dark);
+        }
+
+        .card-unit {
+            font-size: 1rem;
+            color: var(--accent);
+            font-weight: 500;
+        }
+
+        .chart-container {
+            position: relative;
+            height: 200px;
+            width: 100%;
+            margin-top: 1rem;
+        }
+
+        .trend {
+            display: flex;
+            align-items: center;
+            font-size: 0.9rem;
+            color: #6c757d;
+        }
+
+        .trend.up {
+            color: var(--danger);
+        }
+
+        .trend.down {
+            color: var(--success);
+        }
+
+        .motor-status {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-top: 0.5rem;
+        }
+
+        .status-on {
+            color: var(--success);
+            font-weight: 500;
+        }
+
+        .status-off {
+            color: var(--danger);
+            font-weight: 500;
+        }
+
+        .rotation-info {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 0.5rem;
+            font-size: 0.9rem;
+            color: #6c757d;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes pulse {
+            0% {
+                transform: scale(1);
+            }
+            50% {
+                transform: scale(1.05);
+            }
+            100% {
+                transform: scale(1);
+            }
+        }
+
+        .pulse {
+            animation: pulse 2s infinite;
+        }
+
+        @media (max-width: 768px) {
             .dashboard {
-                max-width: 1400px;
-                margin: 0 auto;
-                display: grid;
-                grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-                gap: 1.5rem;
+                grid-template-columns: 1fr;
             }
 
             .header {
-                grid-column: 1 / -1;
-                background: white;
-                border-radius: 1rem;
-                padding: 1.5rem;
-                box-shadow: 0 10px 30px rgba(0, 0, 0, 0.05);
-                display: flex;
-                justify-content: space-between;
-                align-items: center;
-                animation: fadeIn 0.8s ease-out;
-            }
-
-            .header-content {
-                display: flex;
                 flex-direction: column;
-                gap: 0.5rem;
-            }
-
-            .header h1 {
-                font-weight: 600;
-                color: var(--primary);
-                display: flex;
-                align-items: center;
-                gap: 0.8rem;
-            }
-
-            .header h1 i {
-                color: var(--accent);
+                gap: 1rem;
+                text-align: center;
             }
 
             .header-controls {
-                display: flex;
-                align-items: center;
-                gap: 1rem;
-            }
-
-            .status-badge {
-                display: flex;
-                align-items: center;
-                gap: 0.6rem;
-                background: rgba(67, 97, 238, 0.1);
-                padding: 0.6rem 1.2rem;
-                border-radius: 2rem;
-                font-weight: 500;
-                transition: all 0.3s ease;
-            }
-
-            .status-badge.connected {
-                background: rgba(76, 201, 240, 0.1);
-                color: var(--success);
-            }
-
-            .status-badge.disconnected {
-                background: rgba(247, 37, 133, 0.1);
-                color: var(--danger);
-            }
-
-            .status-indicator {
-                width: 12px;
-                height: 12px;
-                border-radius: 50%;
-                display: inline-block;
-            }
-
-            .status-indicator.connected {
-                background: var(--success);
-                box-shadow: 0 0 10px var(--success);
-            }
-
-            .status-indicator.disconnected {
-                background: var(--danger);
-                box-shadow: 0 0 10px var(--danger);
-            }
-
-            .last-update {
-                font-size: 0.9rem;
-                color: #6c757d;
-                background: rgba(108, 117, 125, 0.1);
-                padding: 0.4rem 0.8rem;
-                border-radius: 1rem;
-            }
-
-            .card {
-                background: white;
-                border-radius: 1rem;
-                padding: 1.5rem;
-                box-shadow: 0 10px 30px rgba(0, 0, 0, 0.05);
-                transition: transform 0.3s ease, box-shadow 0.3s ease;
-                animation: fadeIn 0.8s ease-out;
-                animation-fill-mode: backwards;
-            }
-
-            .card:hover {
-                transform: translateY(-5px);
-                box-shadow: 0 15px 35px rgba(0, 0, 0, 0.1);
-            }
-
-            .card:nth-child(2) {
-                animation-delay: 0.1s;
-            }
-
-            .card:nth-child(3) {
-                animation-delay: 0.2s;
-            }
-
-            .card:nth-child(4) {
-                animation-delay: 0.3s;
-            }
-
-            .card-header {
-                display: flex;
-                justify-content: space-between;
-                align-items: center;
-                margin-bottom: 1rem;
-            }
-
-            .card-title {
-                font-weight: 500;
-                color: var(--secondary);
-                display: flex;
-                align-items: center;
-                gap: 0.6rem;
-            }
-
-            .card-icon {
-                width: 2.5rem;
-                height: 2.5rem;
-                border-radius: 0.8rem;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                color: white;
-            }
-
-            .temp-icon {
-                background: linear-gradient(135deg, #ff9a9e 0%, #fad0c4 100%);
-            }
-
-            .humidity-icon {
-                background: linear-gradient(135deg, #a1c4fd 0%, #c2e9fb 100%);
-            }
-
-            .motor-icon {
-                background: linear-gradient(135deg, #84fab0 0%, #8fd3f4 100%);
-            }
-
-            .card-value {
-                font-size: 2.5rem;
-                font-weight: 600;
-                margin: 1rem 0;
-                color: var(--dark);
-            }
-
-            .card-unit {
-                font-size: 1rem;
-                color: var(--accent);
-                font-weight: 500;
-            }
-
-            .chart-container {
-                position: relative;
-                height: 200px;
+                flex-direction: column;
                 width: 100%;
                 margin-top: 1rem;
             }
-
-            .trend {
-                display: flex;
-                align-items: center;
-                font-size: 0.9rem;
-                color: #6c757d;
-            }
-
-            .trend.up {
-                color: var(--danger);
-            }
-
-            .trend.down {
-                color: var(--success);
-            }
-
-            .motor-status {
-                display: flex;
-                align-items: center;
-                gap: 0.5rem;
-                margin-top: 0.5rem;
-            }
-
-            .status-on {
-                color: var(--success);
-                font-weight: 500;
-            }
-
-            .status-off {
-                color: var(--danger);
-                font-weight: 500;
-            }
-
-            @keyframes fadeIn {
-                from {
-                    opacity: 0;
-                    transform: translateY(20px);
-                }
-                to {
-                    opacity: 1;
-                    transform: translateY(0);
-                }
-            }
-
-            @keyframes pulse {
-                0% {
-                    transform: scale(1);
-                }
-                50% {
-                    transform: scale(1.05);
-                }
-                100% {
-                    transform: scale(1);
-                }
-            }
-
-            .pulse {
-                animation: pulse 2s infinite;
-            }
-
-            @media (max-width: 768px) {
-                .dashboard {
-                    grid-template-columns: 1fr;
-                }
-
-                .header {
-                    flex-direction: column;
-                    gap: 1rem;
-                    text-align: center;
-                }
-
-                .header-controls {
-                    flex-direction: column;
-                    width: 100%;
-                    margin-top: 1rem;
-                }
-            }
-        </style>
-    </head>
-    <body>
-        <div class="dashboard">
-            <header class="header">
-                <div class="header-content">
-                    <h1><i class="fas fa-microchip"></i> Dashboard Shaker ESP32</h1>
-                    <p>Monitoreo en tiempo real del sistema Shaker</p>
+        }
+    </style>
+</head>
+<body>
+    <div class="dashboard">
+        <header class="header">
+            <div class="header-content">
+                <h1><i class="fas fa-microchip"></i> Dashboard Shaker ESP32</h1>
+                <p>Monitoreo en tiempo real del sistema Shaker</p>
+            </div>
+            <div class="header-controls">
+                <div id="status-badge" class="status-badge disconnected">
+                    <span id="status-indicator" class="status-indicator disconnected"></span>
+                    <span id="connection-text">Desconectado</span>
                 </div>
-                <div class="header-controls">
-                    <div id="status-badge" class="status-badge disconnected">
-                        <span id="status-indicator" class="status-indicator disconnected"></span>
-                        <span id="connection-text">Desconectado</span>
-                    </div>
-                    <div id="last-update" class="last-update">
-                        <i class="fas fa-clock"></i> Última actualización: --
-                    </div>
-                </div>
-            </header>
-
-            <div class="card">
-                <div class="card-header">
-                    <h2 class="card-title"><i class="fas fa-temperature-high"></i> Temperatura</h2>
-                    <div class="card-icon temp-icon">
-                        <i class="fas fa-thermometer-half"></i>
-                    </div>
-                </div>
-                <div class="card-value"><span id="temperature">--</span> <span class="card-unit">°C</span></div>
-                <div class="trend" id="temp-trend"><i class="fas fa-arrow-right"></i> Esperando datos</div>
-                <div class="chart-container">
-                    <canvas id="tempChart"></canvas>
+                <div id="last-update" class="last-update">
+                    <i class="fas fa-clock"></i> Última actualización: --
                 </div>
             </div>
+        </header>
 
-            <div class="card">
-                <div class="card-header">
-                    <h2 class="card-title"><i class="fas fa-tint"></i> Humedad</h2>
-                    <div class="card-icon humidity-icon">
-                        <i class="fas fa-water"></i>
-                    </div>
-                </div>
-                <div class="card-value"><span id="humidity">--</span> <span class="card-unit">%</span></div>
-                <div class="trend" id="humidity-trend"><i class="fas fa-arrow-right"></i> Esperando datos</div>
-                <div class="chart-container">
-                    <canvas id="humidityChart"></canvas>
+        <div class="card">
+            <div class="card-header">
+                <h2 class="card-title"><i class="fas fa-temperature-high"></i> Temperatura</h2>
+                <div class="card-icon temp-icon">
+                    <i class="fas fa-thermometer-half"></i>
                 </div>
             </div>
-
-            <div class="card">
-                <div class="card-header">
-                    <h2 class="card-title"><i class="fas fa-cog"></i> Estado del Motor</h2>
-                    <div class="card-icon motor-icon">
-                        <i class="fas fa-fan"></i>
-                    </div>
-                </div>
-                <div class="card-value"><span id="motorSpeed">--</span> <span class="card-unit">RPM</span></div>
-                <div class="motor-status">
-                    <span>Estado:</span>
-                    <span id="motorState" class="status-off">Apagado</span>
-                </div>
-                <div class="trend" id="motor-trend"><i class="fas fa-arrow-right"></i> Esperando datos</div>
-                <div class="chart-container">
-                    <canvas id="motorChart"></canvas>
-                </div>
+            <div class="card-value"><span id="temperature">--</span> <span class="card-unit">°C</span></div>
+            <div class="trend" id="temp-trend"><i class="fas fa-arrow-right"></i> Esperando datos</div>
+            <div class="chart-container">
+                <canvas id="tempChart"></canvas>
             </div>
         </div>
 
-        <script>
-            // Configuración de Firebase
-            const firebaseConfig = {
-                databaseURL: "https://shaker-3e6f1-default-rtdb.firebaseio.com/"
-            };
+        <div class="card">
+            <div class="card-header">
+                <h2 class="card-title"><i class="fas fa-tint"></i> Humedad</h2>
+                <div class="card-icon humidity-icon">
+                    <i class="fas fa-water"></i>
+                </div>
+            </div>
+            <div class="card-value"><span id="humidity">--</span> <span class="card-unit">%</span></div>
+            <div class="trend" id="humidity-trend"><i class="fas fa-arrow-right"></i> Esperando datos</div>
+            <div class="chart-container">
+                <canvas id="humidityChart"></canvas>
+            </div>
+        </div>
 
-            // Inicializar Firebase
-            firebase.initializeApp(firebaseConfig);
-            const database = firebase.database();
+        <div class="card">
+            <div class="card-header">
+                <h2 class="card-title"><i class="fas fa-cog"></i> Estado del Motor</h2>
+                <div class="card-icon motor-icon">
+                    <i class="fas fa-fan"></i>
+                </div>
+            </div>
+            <div class="card-value"><span id="motorSpeed">--</span> <span class="card-unit">RPM</span></div>
+            <div class="motor-status">
+                <span>Estado:</span>
+                <span id="motorState" class="status-off">Apagado</span>
+            </div>
+            <div class="trend" id="motor-trend"><i class="fas fa-arrow-right"></i> Esperando datos</div>
+            <div class="chart-container">
+                <canvas id="motorChart"></canvas>
+            </div>
+        </div>
 
-            // Variables para almacenar datos
-            const maxDataPoints = 15;
-            let timeStamps = [];
-            let tempData = [];
-            let humidityData = [];
-            let motorData = [];
-            let lastUpdateTime = null;
+        <!-- NUEVA TARJETA: VUELTAS DEL MOTOR -->
+        <div class="card">
+            <div class="card-header">
+                <h2 class="card-title"><i class="fas fa-sync-alt"></i> Vueltas del Motor</h2>
+                <div class="card-icon rotation-icon">
+                    <i class="fas fa-redo-alt"></i>
+                </div>
+            </div>
+            <div class="card-value"><span id="motorRotation">--</span> <span class="card-unit">vueltas</span></div>
+            <div class="rotation-info">
+                <span>Total acumulado:</span>
+                <span id="totalRotations">0</span>
+            </div>
+            <div class="trend" id="rotation-trend"><i class="fas fa-arrow-right"></i> Esperando datos</div>
+            <div class="chart-container">
+                <canvas id="rotationChart"></canvas>
+            </div>
+        </div>
+    </div>
 
-            // Colores personalizados
-            const tempColor = '#ff6b6b';
-            const humidityColor = '#4dabf7';
-            const motorColor = '#51cf66';
+    <script>
+        // Configuración de Firebase
+        const firebaseConfig = {
+            databaseURL: "https://shaker-3e6f1-default-rtdb.firebaseio.com/"
+        };
 
-            // Inicializar gráficos
-            const tempCtx = document.getElementById('tempChart').getContext('2d');
-            const humidityCtx = document.getElementById('humidityChart').getContext('2d');
-            const motorCtx = document.getElementById('motorChart').getContext('2d');
+        // Inicializar Firebase
+        firebase.initializeApp(firebaseConfig);
+        const database = firebase.database();
 
-            const chartOptions = {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: { display: false },
-                    tooltip: {
-                        backgroundColor: 'rgba(0, 0, 0, 0.8)',
-                        titleFont: { family: 'Poppins', size: 12 },
-                        bodyFont: { family: 'Poppins', size: 12 },
-                        cornerRadius: 8,
-                        displayColors: false
-                    }
-                },
-                scales: {
-                    x: {
-                        grid: { display: false },
-                        ticks: { 
-                            font: { family: 'Poppins' },
-                            maxTicksLimit: 5
-                        }
-                    },
-                    y: {
-                        grid: { color: 'rgba(0, 0, 0, 0.05)' },
-                        ticks: { font: { family: 'Poppins' } }
-                    }
-                },
-                elements: {
-                    line: {
-                        tension: 0.4,
-                        borderWidth: 3
-                    },
-                    point: {
-                        radius: 0,
-                        hoverRadius: 6
-                    }
-                },
-                animation: {
-                    duration: 500
+        // Variables para almacenar datos
+        const maxDataPoints = 15;
+        let timeStamps = [];
+        let tempData = [];
+        let humidityData = [];
+        let motorData = [];
+        let rotationData = [];
+        let totalRotations = 0;
+        let lastUpdateTime = null;
+
+        // Colores personalizados
+        const tempColor = '#ff6b6b';
+        const humidityColor = '#4dabf7';
+        const motorColor = '#51cf66';
+        const rotationColor = '#ff922b';
+
+        // Inicializar gráficos
+        const tempCtx = document.getElementById('tempChart').getContext('2d');
+        const humidityCtx = document.getElementById('humidityChart').getContext('2d');
+        const motorCtx = document.getElementById('motorChart').getContext('2d');
+        const rotationCtx = document.getElementById('rotationChart').getContext('2d');
+
+        const chartOptions = {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                    titleFont: { family: 'Poppins', size: 12 },
+                    bodyFont: { family: 'Poppins', size: 12 },
+                    cornerRadius: 8,
+                    displayColors: false
                 }
-            };
-
-            const tempChart = new Chart(tempCtx, {
-                type: 'line',
-                data: {
-                    labels: timeStamps,
-                    datasets: [{
-                        data: tempData,
-                        borderColor: tempColor,
-                        backgroundColor: 'rgba(255, 107, 107, 0.1)',
-                        fill: true,
-                        borderCapStyle: 'round',
-                        borderJoinStyle: 'round'
-                    }]
+            },
+            scales: {
+                x: {
+                    grid: { display: false },
+                    ticks: { 
+                        font: { family: 'Poppins' },
+                        maxTicksLimit: 5
+                    }
                 },
-                options: chartOptions
-            });
-
-            const humidityChart = new Chart(humidityCtx, {
-                type: 'line',
-                data: {
-                    labels: timeStamps,
-                    datasets: [{
-                        data: humidityData,
-                        borderColor: humidityColor,
-                        backgroundColor: 'rgba(77, 171, 247, 0.1)',
-                        fill: true,
-                        borderCapStyle: 'round',
-                        borderJoinStyle: 'round'
-                    }]
+                y: {
+                    grid: { color: 'rgba(0, 0, 0, 0.05)' },
+                    ticks: { font: { family: 'Poppins' } }
+                }
+            },
+            elements: {
+                line: {
+                    tension: 0.4,
+                    borderWidth: 3
                 },
-                options: chartOptions
-            });
+                point: {
+                    radius: 0,
+                    hoverRadius: 6
+                }
+            },
+            animation: {
+                duration: 500
+            }
+        };
 
-            const motorChart = new Chart(motorCtx, {
-                type: 'line',
-                data: {
-                    labels: timeStamps,
-                    datasets: [{
-                        data: motorData,
-                        borderColor: motorColor,
-                        backgroundColor: 'rgba(81, 207, 102, 0.1)',
-                        fill: true,
-                        borderCapStyle: 'round',
-                        borderJoinStyle: 'round'
-                    }]
-                },
-                options: chartOptions
-            });
+        const tempChart = new Chart(tempCtx, {
+            type: 'line',
+            data: {
+                labels: timeStamps,
+                datasets: [{
+                    data: tempData,
+                    borderColor: tempColor,
+                    backgroundColor: 'rgba(255, 107, 107, 0.1)',
+                    fill: true,
+                    borderCapStyle: 'round',
+                    borderJoinStyle: 'round'
+                }]
+            },
+            options: chartOptions
+        });
 
-            // Función para determinar la tendencia
-            function getTrendIcon(current, previous) {
-                if (current > previous) return '<i class="fas fa-arrow-up"></i> Subiendo';
-                if (current < previous) return '<i class="fas fa-arrow-down"></i> Bajando';
-                return '<i class="fas fa-arrow-right"></i> Estable';
+        const humidityChart = new Chart(humidityCtx, {
+            type: 'line',
+            data: {
+                labels: timeStamps,
+                datasets: [{
+                    data: humidityData,
+                    borderColor: humidityColor,
+                    backgroundColor: 'rgba(77, 171, 247, 0.1)',
+                    fill: true,
+                    borderCapStyle: 'round',
+                    borderJoinStyle: 'round'
+                }]
+            },
+            options: chartOptions
+        });
+
+        const motorChart = new Chart(motorCtx, {
+            type: 'line',
+            data: {
+                labels: timeStamps,
+                datasets: [{
+                    data: motorData,
+                    borderColor: motorColor,
+                    backgroundColor: 'rgba(81, 207, 102, 0.1)',
+                    fill: true,
+                    borderCapStyle: 'round',
+                    borderJoinStyle: 'round'
+                }]
+            },
+            options: chartOptions
+        });
+
+        const rotationChart = new Chart(rotationCtx, {
+            type: 'line',
+            data: {
+                labels: timeStamps,
+                datasets: [{
+                    data: rotationData,
+                    borderColor: rotationColor,
+                    backgroundColor: 'rgba(255, 146, 43, 0.1)',
+                    fill: true,
+                    borderCapStyle: 'round',
+                    borderJoinStyle: 'round'
+                }]
+            },
+            options: chartOptions
+        });
+
+        // Función para determinar la tendencia
+        function getTrendIcon(current, previous) {
+            if (current > previous) return '<i class="fas fa-arrow-up"></i> Subiendo';
+            if (current < previous) return '<i class="fas fa-arrow-down"></i> Bajando';
+            return '<i class="fas fa-arrow-right"></i> Estable';
+        }
+
+        // Función para actualizar los datos desde Firebase
+        function updateDataFromFirebase(snapshot) {
+            const data = snapshot.val();
+            if (!data) return;
+
+            const now = new Date();
+            const timeString = now.getHours() + ':' + now.getMinutes().toString().padStart(2, '0');
+
+            // Obtener datos de la estructura de Firebase
+            const temperature = data.sensor?.temperatura || 0;
+            const humidity = data.sensor?.humedad || 0;
+            const motorSpeed = data.motor?.rpm || 0;
+            const motorState = data.motor?.encendido || false;
+            const motorPosition = data.motor?.posicion || 0;
+
+            // Calcular vueltas (asumiendo que la posición se incrementa)
+            const currentRotation = Math.floor(motorPosition / 360); // Convertir posición a vueltas completas
+            if (currentRotation > 0) {
+                totalRotations = currentRotation; // Actualizar total acumulado
             }
 
-            // Función para actualizar los datos desde Firebase
-            function updateDataFromFirebase(snapshot) {
-                const data = snapshot.val();
-                if (!data) return;
+            // Guardar valores anteriores para tendencias
+            const prevTemp = tempData.length > 0 ? tempData[tempData.length - 1] : temperature;
+            const prevHumidity = humidityData.length > 0 ? humidityData[humidityData.length - 1] : humidity;
+            const prevMotor = motorData.length > 0 ? motorData[motorData.length - 1] : motorSpeed;
+            const prevRotation = rotationData.length > 0 ? rotationData[rotationData.length - 1] : currentRotation;
 
-                const now = new Date();
-                const timeString = now.getHours() + ':' + now.getMinutes().toString().padStart(2, '0');
+            // Actualizar arrays de datos
+            timeStamps.push(timeString);
+            tempData.push(temperature);
+            humidityData.push(humidity);
+            motorData.push(motorSpeed);
+            rotationData.push(currentRotation);
 
-                // Obtener datos de la estructura de Firebase
-                const temperature = data.sensor?.temperatura || 0;
-                const humidity = data.sensor?.humedad || 0;
-                const motorSpeed = data.motor?.rpm || 0;
-                const motorState = data.motor?.encendido || false;
-                const motorPosition = data.motor?.posicion || 0;
+            // Limitar el número de puntos de datos
+            if (timeStamps.length > maxDataPoints) {
+                timeStamps.shift();
+                tempData.shift();
+                humidityData.shift();
+                motorData.shift();
+                rotationData.shift();
+            }
 
-                // Guardar valores anteriores para tendencias
-                const prevTemp = tempData.length > 0 ? tempData[tempData.length - 1] : temperature;
-                const prevHumidity = humidityData.length > 0 ? humidityData[humidityData.length - 1] : humidity;
-                const prevMotor = motorData.length > 0 ? motorData[motorData.length - 1] : motorSpeed;
+            // Actualizar valores mostrados
+            document.getElementById('temperature').textContent = temperature.toFixed(1);
+            document.getElementById('humidity').textContent = humidity.toFixed(1);
+            document.getElementById('motorSpeed').textContent = motorSpeed;
+            document.getElementById('motorRotation').textContent = currentRotation;
+            document.getElementById('totalRotations').textContent = totalRotations;
 
-                // Actualizar arrays de datos
-                timeStamps.push(timeString);
-                tempData.push(temperature);
-                humidityData.push(humidity);
-                motorData.push(motorSpeed);
+            // Actualizar estado del motor
+            const motorStateElement = document.getElementById('motorState');
+            if (motorState) {
+                motorStateElement.textContent = 'Encendido';
+                motorStateElement.className = 'status-on';
+                document.querySelector('.motor-icon').classList.add('pulse');
+                document.querySelector('.rotation-icon').classList.add('pulse');
+            } else {
+                motorStateElement.textContent = 'Apagado';
+                motorStateElement.className = 'status-off';
+                document.querySelector('.motor-icon').classList.remove('pulse');
+                document.querySelector('.rotation-icon').classList.remove('pulse');
+            }
 
-                // Limitar el número de puntos de datos
-                if (timeStamps.length > maxDataPoints) {
-                    timeStamps.shift();
-                    tempData.shift();
-                    humidityData.shift();
-                    motorData.shift();
-                }
+            // Actualizar tendencias
+            document.getElementById('temp-trend').innerHTML = getTrendIcon(temperature, prevTemp);
+            document.getElementById('humidity-trend').innerHTML = getTrendIcon(humidity, prevHumidity);
+            document.getElementById('motor-trend').innerHTML = getTrendIcon(motorSpeed, prevMotor);
+            document.getElementById('rotation-trend').innerHTML = getTrendIcon(currentRotation, prevRotation);
 
-                // Actualizar valores mostrados
-                document.getElementById('temperature').textContent = temperature.toFixed(1);
-                document.getElementById('humidity').textContent = humidity.toFixed(1);
-                document.getElementById('motorSpeed').textContent = motorSpeed;
+            // Añadir clases de color según tendencia
+            updateTrendStyle('temp-trend', temperature, prevTemp);
+            updateTrendStyle('humidity-trend', humidity, prevHumidity);
+            updateTrendStyle('motor-trend', motorSpeed, prevMotor);
+            updateTrendStyle('rotation-trend', currentRotation, prevRotation);
 
-                // Actualizar estado del motor
-                const motorStateElement = document.getElementById('motorState');
-                if (motorState) {
-                    motorStateElement.textContent = 'Encendido';
-                    motorStateElement.className = 'status-on';
-                    document.querySelector('.motor-icon').classList.add('pulse');
-                } else {
-                    motorStateElement.textContent = 'Apagado';
-                    motorStateElement.className = 'status-off';
-                    document.querySelector('.motor-icon').classList.remove('pulse');
-                }
+            // Actualizar gráficos
+            updateChart(tempChart, timeStamps, tempData);
+            updateChart(humidityChart, timeStamps, humidityData);
+            updateChart(motorChart, timeStamps, motorData);
+            updateChart(rotationChart, timeStamps, rotationData);
 
-                // Actualizar tendencias
-                document.getElementById('temp-trend').innerHTML = getTrendIcon(temperature, prevTemp);
-                document.getElementById('humidity-trend').innerHTML = getTrendIcon(humidity, prevHumidity);
-                document.getElementById('motor-trend').innerHTML = getTrendIcon(motorSpeed, prevMotor);
+            // Actualizar última actualización
+            lastUpdateTime = new Date();
+            document.getElementById('last-update').innerHTML = 
+                `<i class="fas fa-clock"></i> Última actualización: ${lastUpdateTime.toLocaleTimeString()}`;
 
-                // Añadir clases de color según tendencia
-                updateTrendStyle('temp-trend', temperature, prevTemp);
-                updateTrendStyle('humidity-trend', humidity, prevHumidity);
-                updateTrendStyle('motor-trend', motorSpeed, prevMotor);
+            // Actualizar estado de conexión
+            updateConnectionStatus(true);
+        }
 
-                // Actualizar gráficos
-                updateChart(tempChart, timeStamps, tempData);
-                updateChart(humidityChart, timeStamps, humidityData);
-                updateChart(motorChart, timeStamps, motorData);
+        function updateTrendStyle(elementId, current, previous) {
+            const element = document.getElementById(elementId);
+            element.classList.remove('up', 'down');
 
-                // Actualizar última actualización
-                lastUpdateTime = new Date();
+            if (current > previous) element.classList.add('up');
+            if (current < previous) element.classList.add('down');
+        }
+
+        function updateChart(chart, labels, data) {
+            chart.data.labels = labels;
+            chart.data.datasets[0].data = data;
+            chart.update('active');
+        }
+
+        function updateConnectionStatus(connected) {
+            const badge = document.getElementById('status-badge');
+            const indicator = document.getElementById('status-indicator');
+            const text = document.getElementById('connection-text');
+
+            if (connected) {
+                badge.classList.remove('disconnected');
+                badge.classList.add('connected');
+                indicator.classList.remove('disconnected');
+                indicator.classList.add('connected');
+                text.textContent = 'Conectado a Firebase';
+            } else {
+                badge.classList.remove('connected');
+                badge.classList.add('disconnected');
+                indicator.classList.remove('connected');
+                indicator.classList.add('disconnected');
+                text.textContent = 'Desconectado';
+            }
+        }
+
+        // Función para verificar si hay datos recientes
+        function checkDataFreshness() {
+            if (!lastUpdateTime) return;
+
+            const now = new Date();
+            const diff = now - lastUpdateTime;
+            const minutesDiff = Math.floor(diff / 60000);
+
+            if (minutesDiff > 2) { // Más de 2 minutos sin actualización
+                updateConnectionStatus(false);
                 document.getElementById('last-update').innerHTML = 
-                    `<i class="fas fa-clock"></i> Última actualización: ${lastUpdateTime.toLocaleTimeString()}`;
-
-                // Actualizar estado de conexión
-                updateConnectionStatus(true);
+                    `<i class="fas fa-exclamation-triangle"></i> Datos desactualizados (${minutesDiff} min)`;
             }
+        }
 
-            function updateTrendStyle(elementId, current, previous) {
-                const element = document.getElementById(elementId);
-                element.classList.remove('up', 'down');
-
-                if (current > previous) element.classList.add('up');
-                if (current < previous) element.classList.add('down');
-            }
-
-            function updateChart(chart, labels, data) {
-                chart.data.labels = labels;
-                chart.data.datasets[0].data = data;
-                chart.update('active');
-            }
-
-            function updateConnectionStatus(connected) {
-                const badge = document.getElementById('status-badge');
-                const indicator = document.getElementById('status-indicator');
-                const text = document.getElementById('connection-text');
-
-                if (connected) {
-                    badge.classList.remove('disconnected');
-                    badge.classList.add('connected');
-                    indicator.classList.remove('disconnected');
-                    indicator.classList.add('connected');
-                    text.textContent = 'Conectado a Firebase';
-                } else {
-                    badge.classList.remove('connected');
-                    badge.classList.add('disconnected');
-                    indicator.classList.remove('connected');
-                    indicator.classList.add('disconnected');
-                    text.textContent = 'Desconectado';
-                }
-            }
-
-            // Función para verificar si hay datos recientes
-            function checkDataFreshness() {
-                if (!lastUpdateTime) return;
-
-                const now = new Date();
-                const diff = now - lastUpdateTime;
-                const minutesDiff = Math.floor(diff / 60000);
-
-                if (minutesDiff > 2) { // Más de 2 minutos sin actualización
-                    updateConnectionStatus(false);
-                    document.getElementById('last-update').innerHTML = 
-                        `<i class="fas fa-exclamation-triangle"></i> Datos desactualizados (${minutesDiff} min)`;
-                }
-            }
-
-            // Escuchar cambios en la base de datos de Firebase
-            function startFirebaseListener() {
-                const dataRef = database.ref('/');
-                
-                dataRef.on('value', (snapshot) => {
-                    updateDataFromFirebase(snapshot);
-                }, (error) => {
-                    console.error('Error en Firebase:', error);
-                    updateConnectionStatus(false);
-                });
-
-                // Verificar frescura de datos cada minuto
-                setInterval(checkDataFreshness, 60000);
-            }
-
-            // Inicializar la aplicación
-            function initApp() {
-                try {
-                    startFirebaseListener();
-                    console.log('Dashboard inicializado correctamente');
-                } catch (error) {
-                    console.error('Error al inicializar la aplicación:', error);
-                    updateConnectionStatus(false);
-                }
-            }
-
-            // Iniciar cuando el documento esté listo
-            document.addEventListener('DOMContentLoaded', initApp);
-
-            // Manejar errores no capturados
-            window.addEventListener('error', (event) => {
-                console.error('Error global:', event.error);
+        // Escuchar cambios en la base de datos de Firebase
+        function startFirebaseListener() {
+            const dataRef = database.ref('/');
+            
+            dataRef.on('value', (snapshot) => {
+                updateDataFromFirebase(snapshot);
+            }, (error) => {
+                console.error('Error en Firebase:', error);
                 updateConnectionStatus(false);
             });
-        </script>
-    </body>
+
+            // Verificar frescura de datos cada minuto
+            setInterval(checkDataFreshness, 60000);
+        }
+
+        // Inicializar la aplicación
+        function initApp() {
+            try {
+                startFirebaseListener();
+                console.log('Dashboard inicializado correctamente');
+            } catch (error) {
+                console.error('Error al inicializar la aplicación:', error);
+                updateConnectionStatus(false);
+            }
+        }
+
+        // Iniciar cuando el documento esté listo
+        document.addEventListener('DOMContentLoaded', initApp);
+
+        // Manejar errores no capturados
+        window.addEventListener('error', (event) => {
+            console.error('Error global:', event.error);
+            updateConnectionStatus(false);
+        });
+    </script>
+</body>
 </html>
