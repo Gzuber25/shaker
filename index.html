@@ -173,6 +173,10 @@
             background: linear-gradient(135deg, #a1c4fd 0%, #c2e9fb 100%);
         }
 
+        .motor-icon {
+            background: linear-gradient(135deg, #84fab0 0%, #8fd3f4 100%);
+        }
+
         .card-value {
             font-size: 2.5rem;
             font-weight: 600;
@@ -206,6 +210,23 @@
 
         .trend.down {
             color: var(--success);
+        }
+
+        .motor-status {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-top: 0.5rem;
+        }
+
+        .status-on {
+            color: var(--success);
+            font-weight: 500;
+        }
+
+        .status-off {
+            color: var(--danger);
+            font-weight: 500;
         }
 
         /* Nuevos estilos para aletas de funcionamiento */
@@ -411,7 +432,7 @@
             </div>
         </header>
 
-        <!-- Panel de estado del sistema -->
+        <!-- Panel de estado del sistema (sin estado del motor) -->
         <div class="status-panel">
             <h2><i class="fas fa-heartbeat"></i> Estado del Sistema</h2>
             <div class="status-grid">
@@ -465,6 +486,29 @@
             <div class="card-value"><span id="humidity">--</span> <span class="card-unit">%</span></div>
             <div class="trend" id="humidity-trend"><i class="fas fa-arrow-right"></i> Esperando datos</div>
             <div class="chart-container"><canvas id="humidityChart"></canvas></div>
+        </div>
+
+        <!-- RPM del motor -->
+        <div class="card">
+            <div class="card-header">
+                <h2 class="card-title"><i class="fas fa-cog"></i> Estado del Motor</h2>
+                <div class="card-icon motor-icon"><i class="fas fa-fan"></i></div>
+            </div>
+            <div class="card-value"><span id="motorSpeed">--</span> <span class="card-unit">RPM</span></div>
+            <div class="motor-status"><span>Estado:</span> <span id="motorState" class="status-off">Apagado</span></div>
+            <div class="trend" id="motor-trend"><i class="fas fa-arrow-right"></i> Esperando datos</div>
+            <div class="chart-container"><canvas id="motorChart"></canvas></div>
+        </div>
+
+        <!-- Vueltas del motor -->
+        <div class="card">
+            <div class="card-header">
+                <h2 class="card-title"><i class="fas fa-sync-alt"></i> Vueltas del Motor</h2>
+                <div class="card-icon motor-icon"><i class="fas fa-redo"></i></div>
+            </div>
+            <div class="card-value"><span id="motorRotationsValue">--</span></div>
+            <div class="trend" id="motorRotationsTrend"><i class="fas fa-arrow-right"></i> Esperando datos</div>
+            <div class="chart-container"><canvas id="rotationsChart"></canvas></div>
         </div>
 
         <!-- Panel de logs -->
@@ -526,13 +570,13 @@
 
         // Variables globales
         const maxDataPoints = 15;
-        let timeStamps = [], tempData = [], humidityData = [];
+        let timeStamps = [], tempData = [], humidityData = [], motorData = [], rotationsData = [];
         let lastUpdateTime = null;
         let connectionStatus = false;
         let dataUpdateActive = true;
 
         // Colores para gráficos
-        const tempColor = '#ff6b6b', humidityColor = '#4dabf7';
+        const tempColor = '#ff6b6b', humidityColor = '#4dabf7', motorColor = '#51cf66', rotationsColor = '#ffa94d';
 
         // Configuración común para gráficos
         const chartOptions = {
@@ -558,7 +602,7 @@
         };
 
         // Inicialización de gráficos
-        let tempChart, humidityChart;
+        let tempChart, humidityChart, motorChart, rotationsChart;
         
         try {
             tempChart = new Chart(document.getElementById('tempChart').getContext('2d'), {
@@ -589,6 +633,34 @@
                 options: chartOptions
             });
             
+            motorChart = new Chart(document.getElementById('motorChart').getContext('2d'), {
+                type: 'line',
+                data: {
+                    labels: timeStamps,
+                    datasets: [{
+                        data: motorData,
+                        borderColor: motorColor,
+                        backgroundColor: 'rgba(81,207,102,0.1)',
+                        fill: true
+                    }]
+                },
+                options: chartOptions
+            });
+            
+            rotationsChart = new Chart(document.getElementById('rotationsChart').getContext('2d'), {
+                type: 'line',
+                data: {
+                    labels: timeStamps,
+                    datasets: [{
+                        data: rotationsData,
+                        borderColor: rotationsColor,
+                        backgroundColor: 'rgba(255,169,77,0.1)',
+                        fill: true
+                    }]
+                },
+                options: chartOptions
+            });
+            
             log('Gráficos inicializados correctamente', logLevels.INFO);
             updateSystemStatus('charts', 'ok', 'Funcionando');
         } catch (error) {
@@ -596,7 +668,7 @@
             updateSystemStatus('charts', 'error', 'Error en gráficos');
         }
 
-        // Función para actualizar el estado del sistema
+        // Función para actualizar el estado del sistema (sin estado del motor)
         function updateSystemStatus(component, status, message) {
             const iconElement = document.getElementById(`${component}-status-icon`);
             const valueElement = document.getElementById(`${component}-status`);
@@ -686,6 +758,9 @@
             // Extraer datos con valores por defecto
             const temperature = data.sensor?.temperatura || 0;
             const humidity = data.sensor?.humedad || 0;
+            const motorSpeed = data.motor?.rpm || 0;
+            const motorState = data.motor?.encendido || false;
+            const motorRotations = data.motor?.vueltas || 0;
 
             // Verificar valores anómalos
             if (temperature < -50 || temperature > 100) {
@@ -695,37 +770,67 @@
             if (humidity < 0 || humidity > 100) {
                 log(`Humedad anómala detectada: ${humidity}%`, logLevels.WARNING);
             }
+            
+            if (motorSpeed < 0 || motorSpeed > 10000) {
+                log(`RPM anómalos detectados: ${motorSpeed}`, logLevels.WARNING);
+            }
 
             // Obtener valores anteriores para calcular tendencias
             const prevTemp = tempData.length > 0 ? tempData[tempData.length - 1] : temperature;
             const prevHumidity = humidityData.length > 0 ? humidityData[humidityData.length - 1] : humidity;
+            const prevMotor = motorData.length > 0 ? motorData[motorData.length - 1] : motorSpeed;
+            const prevRotations = rotationsData.length > 0 ? rotationsData[rotationsData.length - 1] : motorRotations;
 
             // Agregar nuevos datos a los arrays
             timeStamps.push(timeString);
             tempData.push(temperature);
             humidityData.push(humidity);
+            motorData.push(motorSpeed);
+            rotationsData.push(motorRotations);
 
             // Mantener solo los últimos datos según maxDataPoints
             if (timeStamps.length > maxDataPoints) {
                 timeStamps.shift();
                 tempData.shift();
                 humidityData.shift();
+                motorData.shift();
+                rotationsData.shift();
             }
 
             // Actualizar valores en la interfaz
             document.getElementById('temperature').textContent = temperature.toFixed(1);
             document.getElementById('humidity').textContent = humidity.toFixed(1);
+            document.getElementById('motorSpeed').textContent = motorSpeed;
+            document.getElementById('motorRotationsValue').textContent = motorRotations;
+
+            // Actualizar estado del motor (solo en la tarjeta, no en el panel del sistema)
+            const motorStateElement = document.getElementById('motorState');
+            if (motorState) {
+                motorStateElement.textContent = 'Encendido';
+                motorStateElement.className = 'status-on';
+                document.querySelector('.motor-icon').classList.add('pulse');
+            } else {
+                motorStateElement.textContent = 'Apagado';
+                motorStateElement.className = 'status-off';
+                document.querySelector('.motor-icon').classList.remove('pulse');
+            }
 
             // Actualizar tendencias
             document.getElementById('temp-trend').innerHTML = getTrendIcon(temperature, prevTemp);
             document.getElementById('humidity-trend').innerHTML = getTrendIcon(humidity, prevHumidity);
+            document.getElementById('motor-trend').innerHTML = getTrendIcon(motorSpeed, prevMotor);
+            document.getElementById('motorRotationsTrend').innerHTML = getTrendIcon(motorRotations, prevRotations);
 
             updateTrendStyle('temp-trend', temperature, prevTemp);
             updateTrendStyle('humidity-trend', humidity, prevHumidity);
+            updateTrendStyle('motor-trend', motorSpeed, prevMotor);
+            updateTrendStyle('motorRotationsTrend', motorRotations, prevRotations);
 
             // Actualizar gráficos
             updateChart(tempChart, timeStamps, tempData);
             updateChart(humidityChart, timeStamps, humidityData);
+            updateChart(motorChart, timeStamps, motorData);
+            updateChart(rotationsChart, timeStamps, rotationsData);
 
             // Actualizar tiempo de última actualización
             lastUpdateTime = new Date();
@@ -736,7 +841,7 @@
             updateSystemStatus('data', 'ok', 'Activo');
             
             // Log de actualización exitosa
-            log(`Datos actualizados - Temp: ${temperature}°C, Hum: ${humidity}%`, logLevels.DEBUG);
+            log(`Datos actualizados - Temp: ${temperature}°C, Hum: ${humidity}%, RPM: ${motorSpeed}`, logLevels.DEBUG);
         }
 
         // Función para verificar la actualización de datos
