@@ -1,929 +1,337 @@
-<!DOCTYPE html>
-<html lang="es">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dashboard ESP32 - Shaker</title>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <style>
-        :root {
-            --primary: #4361ee;
-            --secondary: #3f37c9;
-            --accent: #4895ef;
-            --danger: #f72585;
-            --success: #4cc9f0;
-            --warning: #f8961e;
-            --dark: #212529;
-            --light: #f8f9fa;
-        }
-
-        * {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0;
-        }
-
-        body {
-            font-family: 'Poppins', sans-serif;
-            background: linear-gradient(135deg, #f5f7fa 0%, #e4e8f0 100%);
-            color: var(--dark);
-            min-height: 100vh;
-            padding: 2rem;
-        }
-
-        .dashboard {
-            max-width: 1400px;
-            margin: 0 auto;
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-            gap: 1.5rem;
-        }
-
-        .header {
-            grid-column: 1 / -1;
-            background: white;
-            border-radius: 1rem;
-            padding: 1.5rem;
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.05);
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            animation: fadeIn 0.8s ease-out;
-        }
-
-        .header-content {
-            display: flex;
-            flex-direction: column;
-            gap: 0.5rem;
-        }
-
-        .header h1 {
-            font-weight: 600;
-            color: var(--primary);
-            display: flex;
-            align-items: center;
-            gap: 0.8rem;
-        }
-
-        .header h1 i {
-            color: var(--accent);
-        }
-
-        .header-controls {
-            display: flex;
-            align-items: center;
-            gap: 1rem;
-        }
-
-        .status-badge {
-            display: flex;
-            align-items: center;
-            gap: 0.6rem;
-            background: rgba(67, 97, 238, 0.1);
-            padding: 0.6rem 1.2rem;
-            border-radius: 2rem;
-            font-weight: 500;
-            transition: all 0.3s ease;
-        }
-
-        .status-badge.connected {
-            background: rgba(76, 201, 240, 0.1);
-            color: var(--success);
-        }
-
-        .status-badge.disconnected {
-            background: rgba(247, 37, 133, 0.1);
-            color: var(--danger);
-        }
-
-        .status-indicator {
-            width: 12px;
-            height: 12px;
-            border-radius: 50%;
-            display: inline-block;
-        }
-
-        .status-indicator.connected {
-            background: var(--success);
-            box-shadow: 0 0 10px var(--success);
-        }
-
-        .status-indicator.disconnected {
-            background: var(--danger);
-            box-shadow: 0 0 10px var(--danger);
-        }
-
-        .last-update {
-            font-size: 0.9rem;
-            color: #6c757d;
-            background: rgba(108, 117, 125, 0.1);
-            padding: 0.4rem 0.8rem;
-            border-radius: 1rem;
-        }
-
-        .card {
-            background: white;
-            border-radius: 1rem;
-            padding: 1.5rem;
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.05);
-            transition: transform 0.3s ease, box-shadow 0.3s ease;
-            animation: fadeIn 0.8s ease-out;
-            animation-fill-mode: backwards;
-        }
-
-        .card:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.1);
-        }
-
-        .card-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 1rem;
-        }
-
-        .card-title {
-            font-weight: 500;
-            color: var(--secondary);
-            display: flex;
-            align-items: center;
-            gap: 0.6rem;
-        }
-
-        .card-icon {
-            width: 2.5rem;
-            height: 2.5rem;
-            border-radius: 0.8rem;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: white;
-        }
-
-        .temp-icon {
-            background: linear-gradient(135deg, #ff9a9e 0%, #fad0c4 100%);
-        }
-
-        .humidity-icon {
-            background: linear-gradient(135deg, #a1c4fd 0%, #c2e9fb 100%);
-        }
-
-        .motor-icon {
-            background: linear-gradient(135deg, #84fab0 0%, #8fd3f4 100%);
-        }
-
-        .card-value {
-            font-size: 2.5rem;
-            font-weight: 600;
-            margin: 1rem 0;
-            color: var(--dark);
-        }
-
-        .card-unit {
-            font-size: 1rem;
-            color: var(--accent);
-            font-weight: 500;
-        }
-
-        .chart-container {
-            position: relative;
-            height: 200px;
-            width: 100%;
-            margin-top: 1rem;
-        }
-
-        .trend {
-            display: flex;
-            align-items: center;
-            font-size: 0.9rem;
-            color: #6c757d;
-        }
-
-        .trend.up {
-            color: var(--danger);
-        }
-
-        .trend.down {
-            color: var(--success);
-        }
-
-        .motor-status {
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-            margin-top: 0.5rem;
-        }
-
-        .status-on {
-            color: var(--success);
-            font-weight: 500;
-        }
-
-        .status-off {
-            color: var(--danger);
-            font-weight: 500;
-        }
-
-        /* Nuevos estilos para aletas de funcionamiento */
-        .status-panel {
-            grid-column: 1 / -1;
-            background: white;
-            border-radius: 1rem;
-            padding: 1.5rem;
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.05);
-            margin-bottom: 1.5rem;
-            animation: fadeIn 0.8s ease-out;
-        }
-
-        .status-panel h2 {
-            font-weight: 500;
-            color: var(--secondary);
-            margin-bottom: 1rem;
-            display: flex;
-            align-items: center;
-            gap: 0.6rem;
-        }
-
-        .status-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 1rem;
-        }
-
-        .status-item {
-            display: flex;
-            align-items: center;
-            gap: 0.8rem;
-            padding: 0.8rem;
-            background: rgba(108, 117, 125, 0.05);
-            border-radius: 0.8rem;
-            transition: all 0.3s ease;
-        }
-
-        .status-item:hover {
-            background: rgba(108, 117, 125, 0.1);
-            transform: translateY(-2px);
-        }
-
-        .status-icon {
-            width: 2rem;
-            height: 2rem;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: white;
-            font-size: 0.9rem;
-        }
-
-        .status-icon.ok {
-            background: var(--success);
-        }
-
-        .status-icon.warning {
-            background: var(--warning);
-        }
-
-        .status-icon.error {
-            background: var(--danger);
-        }
-
-        .status-info {
-            flex: 1;
-        }
-
-        .status-label {
-            font-size: 0.8rem;
-            color: #6c757d;
-        }
-
-        .status-value {
-            font-weight: 500;
-            font-size: 0.9rem;
-        }
-
-        .log-panel {
-            grid-column: 1 / -1;
-            background: white;
-            border-radius: 1rem;
-            padding: 1.5rem;
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.05);
-            margin-top: 1.5rem;
-            animation: fadeIn 0.8s ease-out;
-        }
-
-        .log-panel h2 {
-            font-weight: 500;
-            color: var(--secondary);
-            margin-bottom: 1rem;
-            display: flex;
-            align-items: center;
-            gap: 0.6rem;
-        }
-
-        .log-container {
-            max-height: 200px;
-            overflow-y: auto;
-            border: 1px solid rgba(0, 0, 0, 0.1);
-            border-radius: 0.5rem;
-            padding: 1rem;
-            background: #f8f9fa;
-            font-family: monospace;
-            font-size: 0.85rem;
-        }
-
-        .log-entry {
-            margin-bottom: 0.5rem;
-            padding: 0.3rem 0;
-            border-bottom: 1px solid rgba(0, 0, 0, 0.05);
-        }
-
-        .log-timestamp {
-            color: #6c757d;
-            margin-right: 0.5rem;
-        }
-
-        .log-info {
-            color: var(--success);
-        }
-
-        .log-warning {
-            color: var(--warning);
-        }
-
-        .log-error {
-            color: var(--danger);
-        }
-
-        .log-debug {
-            color: var(--accent);
-        }
-
-        @keyframes fadeIn {
-            from {
-                opacity: 0;
-                transform: translateY(20px);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
-        }
-
-        @keyframes pulse {
-            0% {
-                transform: scale(1);
-            }
-            50% {
-                transform: scale(1.05);
-            }
-            100% {
-                transform: scale(1);
-            }
-        }
-
-        .pulse {
-            animation: pulse 2s infinite;
-        }
-
-        @media (max-width: 768px) {
-            .dashboard {
-                grid-template-columns: 1fr;
-            }
-
-            .header {
-                flex-direction: column;
-                gap: 1rem;
-                text-align: center;
-            }
-
-            .header-controls {
-                flex-direction: column;
-                width: 100%;
-                margin-top: 1rem;
-            }
-
-            .status-grid {
-                grid-template-columns: 1fr;
-            }
-        }
-    </style>
-</head>
-<body>
-    <div class="dashboard">
-        <header class="header">
-            <div class="header-content">
-                <h1><i class="fas fa-microchip"></i> Dashboard Shaker ESP32</h1>
-                <p>Monitoreo en tiempo real del sistema Shaker</p>
-            </div>
-            <div class="header-controls">
-                <div id="status-badge" class="status-badge disconnected">
-                    <span id="status-indicator" class="status-indicator disconnected"></span>
-                    <span id="connection-text">Desconectado</span>
-                </div>
-                <div id="last-update" class="last-update">
-                    <i class="fas fa-clock"></i> Última actualización: --
-                </div>
-            </div>
-        </header>
-
-        <!-- Panel de estado del sistema (sin estado del motor) -->
-        <div class="status-panel">
-            <h2><i class="fas fa-heartbeat"></i> Estado del Sistema</h2>
-            <div class="status-grid">
-                <div class="status-item">
-                    <div id="firebase-status-icon" class="status-icon ok">
-                        <i class="fas fa-database"></i>
-                    </div>
-                    <div class="status-info">
-                        <div class="status-label">Conexión Firebase</div>
-                        <div id="firebase-status" class="status-value">Conectado</div>
-                    </div>
-                </div>
-                <div class="status-item">
-                    <div id="data-status-icon" class="status-icon ok">
-                        <i class="fas fa-sync"></i>
-                    </div>
-                    <div class="status-info">
-                        <div class="status-label">Actualización de Datos</div>
-                        <div id="data-status" class="status-value">Activo</div>
-                    </div>
-                </div>
-                <div class="status-item">
-                    <div id="charts-status-icon" class="status-icon ok">
-                        <i class="fas fa-chart-line"></i>
-                    </div>
-                    <div class="status-info">
-                        <div class="status-label">Gráficos</div>
-                        <div id="charts-status" class="status-value">Funcionando</div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Temperatura -->
-        <div class="card">
-            <div class="card-header">
-                <h2 class="card-title"><i class="fas fa-temperature-high"></i> Temperatura</h2>
-                <div class="card-icon temp-icon"><i class="fas fa-thermometer-half"></i></div>
-            </div>
-            <div class="card-value"><span id="temperature">--</span> <span class="card-unit">°C</span></div>
-            <div class="trend" id="temp-trend"><i class="fas fa-arrow-right"></i> Esperando datos</div>
-            <div class="chart-container"><canvas id="tempChart"></canvas></div>
-        </div>
-
-        <!-- Humedad -->
-        <div class="card">
-            <div class="card-header">
-                <h2 class="card-title"><i class="fas fa-tint"></i> Humedad</h2>
-                <div class="card-icon humidity-icon"><i class="fas fa-water"></i></div>
-            </div>
-            <div class="card-value"><span id="humidity">--</span> <span class="card-unit">%</span></div>
-            <div class="trend" id="humidity-trend"><i class="fas fa-arrow-right"></i> Esperando datos</div>
-            <div class="chart-container"><canvas id="humidityChart"></canvas></div>
-        </div>
-
-        <!-- RPM del motor -->
-        <div class="card">
-            <div class="card-header">
-                <h2 class="card-title"><i class="fas fa-cog"></i> Estado del Motor</h2>
-                <div class="card-icon motor-icon"><i class="fas fa-fan"></i></div>
-            </div>
-            <div class="card-value"><span id="motorSpeed">--</span> <span class="card-unit">RPM</span></div>
-            <div class="motor-status"><span>Estado:</span> <span id="motorState" class="status-off">Apagado</span></div>
-            <div class="trend" id="motor-trend"><i class="fas fa-arrow-right"></i> Esperando datos</div>
-            <div class="chart-container"><canvas id="motorChart"></canvas></div>
-        </div>
-
-        <!-- Vueltas del motor -->
-        <div class="card">
-            <div class="card-header">
-                <h2 class="card-title"><i class="fas fa-sync-alt"></i> Vueltas del Motor</h2>
-                <div class="card-icon motor-icon"><i class="fas fa-redo"></i></div>
-            </div>
-            <div class="card-value"><span id="motorRotationsValue">--</span></div>
-            <div class="trend" id="motorRotationsTrend"><i class="fas fa-arrow-right"></i> Esperando datos</div>
-            <div class="chart-container"><canvas id="rotationsChart"></canvas></div>
-        </div>
-
-        <!-- Panel de logs -->
-        <div class="log-panel">
-            <h2><i class="fas fa-clipboard-list"></i> Registro de Actividad</h2>
-            <div class="log-container" id="log-container">
-                <!-- Los logs se agregarán aquí dinámicamente -->
-            </div>
-        </div>
-    </div>
-
-    <script>
-        // Sistema de logging mejorado
-        const logLevels = {
-            INFO: 'info',
-            WARNING: 'warning',
-            ERROR: 'error',
-            DEBUG: 'debug'
-        };
-
-        function log(message, level = logLevels.INFO) {
-            const timestamp = new Date().toLocaleTimeString();
-            const logEntry = document.createElement('div');
-            logEntry.className = 'log-entry';
-            logEntry.innerHTML = `<span class="log-timestamp">[${timestamp}]</span> <span class="log-${level}">${message}</span>`;
-            
-            const logContainer = document.getElementById('log-container');
-            logContainer.appendChild(logEntry);
-            
-            // Auto-scroll al final
-            logContainer.scrollTop = logContainer.scrollHeight;
-            
-            // Mantener solo los últimos 50 logs
-            if (logContainer.children.length > 50) {
-                logContainer.removeChild(logContainer.firstChild);
-            }
-            
-            // También mostrar en consola para debugging
-            console.log(`[${level.toUpperCase()}] ${message}`);
-        }
-
-        // Inicialización de Firebase
-        const firebaseConfig = { 
-            databaseURL: "https://shaker-3e6f1-default-rtdb.firebaseio.com/" 
-        };
-        
-        let firebaseInitialized = false;
-        try {
-            firebase.initializeApp(firebaseConfig);
-            firebaseInitialized = true;
-            log('Firebase inicializado correctamente', logLevels.INFO);
-            updateSystemStatus('firebase', 'ok', 'Conectado');
-        } catch (error) {
-            log(`Error al inicializar Firebase: ${error.message}`, logLevels.ERROR);
-            updateSystemStatus('firebase', 'error', 'Error de conexión');
-        }
-        
-        const database = firebaseInitialized ? firebase.database() : null;
-
-        // Variables globales
-        const maxDataPoints = 15;
-        let timeStamps = [], tempData = [], humidityData = [], motorData = [], rotationsData = [];
-        let lastUpdateTime = null;
-        let connectionStatus = false;
-        let dataUpdateActive = true;
-
-        // Colores para gráficos
-        const tempColor = '#ff6b6b', humidityColor = '#4dabf7', motorColor = '#51cf66', rotationsColor = '#ffa94d';
-
-        // Configuración común para gráficos
-        const chartOptions = {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-                legend: {
-                    display: false
-                }
-            },
-            scales: {
-                x: {
-                    grid: {
-                        display: false
-                    }
-                },
-                y: {
-                    grid: {
-                        color: 'rgba(0,0,0,0.05)'
-                    }
-                }
-            }
-        };
-
-        // Inicialización de gráficos
-        let tempChart, humidityChart, motorChart, rotationsChart;
-        
-        try {
-            tempChart = new Chart(document.getElementById('tempChart').getContext('2d'), {
-                type: 'line',
-                data: {
-                    labels: timeStamps,
-                    datasets: [{
-                        data: tempData,
-                        borderColor: tempColor,
-                        backgroundColor: 'rgba(255,107,107,0.1)',
-                        fill: true
-                    }]
-                },
-                options: chartOptions
-            });
-            
-            humidityChart = new Chart(document.getElementById('humidityChart').getContext('2d'), {
-                type: 'line',
-                data: {
-                    labels: timeStamps,
-                    datasets: [{
-                        data: humidityData,
-                        borderColor: humidityColor,
-                        backgroundColor: 'rgba(77,171,247,0.1)',
-                        fill: true
-                    }]
-                },
-                options: chartOptions
-            });
-            
-            motorChart = new Chart(document.getElementById('motorChart').getContext('2d'), {
-                type: 'line',
-                data: {
-                    labels: timeStamps,
-                    datasets: [{
-                        data: motorData,
-                        borderColor: motorColor,
-                        backgroundColor: 'rgba(81,207,102,0.1)',
-                        fill: true
-                    }]
-                },
-                options: chartOptions
-            });
-            
-            rotationsChart = new Chart(document.getElementById('rotationsChart').getContext('2d'), {
-                type: 'line',
-                data: {
-                    labels: timeStamps,
-                    datasets: [{
-                        data: rotationsData,
-                        borderColor: rotationsColor,
-                        backgroundColor: 'rgba(255,169,77,0.1)',
-                        fill: true
-                    }]
-                },
-                options: chartOptions
-            });
-            
-            log('Gráficos inicializados correctamente', logLevels.INFO);
-            updateSystemStatus('charts', 'ok', 'Funcionando');
-        } catch (error) {
-            log(`Error al inicializar gráficos: ${error.message}`, logLevels.ERROR);
-            updateSystemStatus('charts', 'error', 'Error en gráficos');
-        }
-
-        // Función para actualizar el estado del sistema (sin estado del motor)
-        function updateSystemStatus(component, status, message) {
-            const iconElement = document.getElementById(`${component}-status-icon`);
-            const valueElement = document.getElementById(`${component}-status`);
-            
-            if (iconElement && valueElement) {
-                // Remover clases anteriores
-                iconElement.classList.remove('ok', 'warning', 'error');
-                // Agregar nueva clase
-                iconElement.classList.add(status);
-                
-                // Actualizar texto
-                valueElement.textContent = message;
-                
-                // Log del cambio de estado
-                if (status === 'error') {
-                    log(`Estado de ${component}: ${message}`, logLevels.ERROR);
-                } else if (status === 'warning') {
-                    log(`Estado de ${component}: ${message}`, logLevels.WARNING);
-                } else {
-                    log(`Estado de ${component}: ${message}`, logLevels.INFO);
-                }
-            }
-        }
-
-        // Función para obtener icono de tendencia
-        function getTrendIcon(current, previous) {
-            if (current > previous) return '<i class="fas fa-arrow-up"></i> Subiendo';
-            if (current < previous) return '<i class="fas fa-arrow-down"></i> Bajando';
-            return '<i class="fas fa-arrow-right"></i> Estable';
-        }
-
-        // Función para actualizar estilo de tendencia
-        function updateTrendStyle(elementId, current, previous) {
-            const element = document.getElementById(elementId);
-            element.classList.remove('up', 'down');
-            if (current > previous) element.classList.add('up');
-            if (current < previous) element.classList.add('down');
-        }
-
-        // Función para actualizar gráficos
-        function updateChart(chart, labels, data) {
-            if (chart && chart.data) {
-                chart.data.labels = labels;
-                chart.data.datasets[0].data = data;
-                chart.update('active');
-            }
-        }
-
-        // Función para actualizar estado de conexión
-        function updateConnectionStatus(connected) {
-            const badge = document.getElementById('status-badge');
-            const indicator = document.getElementById('status-indicator');
-            const text = document.getElementById('connection-text');
-            
-            if (connected) {
-                badge.classList.remove('disconnected');
-                badge.classList.add('connected');
-                indicator.classList.remove('disconnected');
-                indicator.classList.add('connected');
-                text.textContent = 'Conectado a Firebase';
-                connectionStatus = true;
-                updateSystemStatus('firebase', 'ok', 'Conectado');
-            } else {
-                badge.classList.remove('connected');
-                badge.classList.add('disconnected');
-                indicator.classList.remove('connected');
-                indicator.classList.add('disconnected');
-                text.textContent = 'Desconectado';
-                connectionStatus = false;
-                updateSystemStatus('firebase', 'error', 'Desconectado');
-            }
-        }
-
-        // Función para procesar datos de Firebase
-        function updateDataFromFirebase(snapshot) {
-            if (!dataUpdateActive) return;
-            
-            const data = snapshot.val();
-            if (!data) {
-                log('No se recibieron datos de Firebase', logLevels.WARNING);
-                return;
-            }
-            
-            const now = new Date();
-            const timeString = now.getHours() + ':' + now.getMinutes().toString().padStart(2, '0');
-
-            // Extraer datos con valores por defecto
-            const temperature = data.sensor?.temperatura || 0;
-            const humidity = data.sensor?.humedad || 0;
-            const motorSpeed = data.motor?.rpm || 0;
-            const motorState = data.motor?.encendido || false;
-            const motorRotations = data.motor?.vueltas || 0;
-
-            // Verificar valores anómalos
-            if (temperature < -50 || temperature > 100) {
-                log(`Temperatura anómala detectada: ${temperature}°C`, logLevels.WARNING);
-            }
-            
-            if (humidity < 0 || humidity > 100) {
-                log(`Humedad anómala detectada: ${humidity}%`, logLevels.WARNING);
-            }
-            
-            if (motorSpeed < 0 || motorSpeed > 10000) {
-                log(`RPM anómalos detectados: ${motorSpeed}`, logLevels.WARNING);
-            }
-
-            // Obtener valores anteriores para calcular tendencias
-            const prevTemp = tempData.length > 0 ? tempData[tempData.length - 1] : temperature;
-            const prevHumidity = humidityData.length > 0 ? humidityData[humidityData.length - 1] : humidity;
-            const prevMotor = motorData.length > 0 ? motorData[motorData.length - 1] : motorSpeed;
-            const prevRotations = rotationsData.length > 0 ? rotationsData[rotationsData.length - 1] : motorRotations;
-
-            // Agregar nuevos datos a los arrays
-            timeStamps.push(timeString);
-            tempData.push(temperature);
-            humidityData.push(humidity);
-            motorData.push(motorSpeed);
-            rotationsData.push(motorRotations);
-
-            // Mantener solo los últimos datos según maxDataPoints
-            if (timeStamps.length > maxDataPoints) {
-                timeStamps.shift();
-                tempData.shift();
-                humidityData.shift();
-                motorData.shift();
-                rotationsData.shift();
-            }
-
-            // Actualizar valores en la interfaz
-            document.getElementById('temperature').textContent = temperature.toFixed(1);
-            document.getElementById('humidity').textContent = humidity.toFixed(1);
-            document.getElementById('motorSpeed').textContent = motorSpeed;
-            document.getElementById('motorRotationsValue').textContent = motorRotations;
-
-            // Actualizar estado del motor (solo en la tarjeta, no en el panel del sistema)
-            const motorStateElement = document.getElementById('motorState');
-            if (motorState) {
-                motorStateElement.textContent = 'Encendido';
-                motorStateElement.className = 'status-on';
-                document.querySelector('.motor-icon').classList.add('pulse');
-            } else {
-                motorStateElement.textContent = 'Apagado';
-                motorStateElement.className = 'status-off';
-                document.querySelector('.motor-icon').classList.remove('pulse');
-            }
-
-            // Actualizar tendencias
-            document.getElementById('temp-trend').innerHTML = getTrendIcon(temperature, prevTemp);
-            document.getElementById('humidity-trend').innerHTML = getTrendIcon(humidity, prevHumidity);
-            document.getElementById('motor-trend').innerHTML = getTrendIcon(motorSpeed, prevMotor);
-            document.getElementById('motorRotationsTrend').innerHTML = getTrendIcon(motorRotations, prevRotations);
-
-            updateTrendStyle('temp-trend', temperature, prevTemp);
-            updateTrendStyle('humidity-trend', humidity, prevHumidity);
-            updateTrendStyle('motor-trend', motorSpeed, prevMotor);
-            updateTrendStyle('motorRotationsTrend', motorRotations, prevRotations);
-
-            // Actualizar gráficos
-            updateChart(tempChart, timeStamps, tempData);
-            updateChart(humidityChart, timeStamps, humidityData);
-            updateChart(motorChart, timeStamps, motorData);
-            updateChart(rotationsChart, timeStamps, rotationsData);
-
-            // Actualizar tiempo de última actualización
-            lastUpdateTime = new Date();
-            document.getElementById('last-update').innerHTML = `<i class="fas fa-clock"></i> Última actualización: ${lastUpdateTime.toLocaleTimeString()}`;
-
-            // Actualizar estado de conexión
-            updateConnectionStatus(true);
-            updateSystemStatus('data', 'ok', 'Activo');
-            
-            // Log de actualización exitosa
-            log(`Datos actualizados - Temp: ${temperature}°C, Hum: ${humidity}%, RPM: ${motorSpeed}`, logLevels.DEBUG);
-        }
-
-        // Función para verificar la actualización de datos
-        function checkDataFreshness() {
-            if (!lastUpdateTime) {
-                log('Aún no se han recibido datos', logLevels.WARNING);
-                return;
-            }
-            
-            const now = new Date();
-            const diff = now - lastUpdateTime;
-            const minutesDiff = Math.floor(diff / 60000);
-            
-            if (minutesDiff > 2) {
-                updateConnectionStatus(false);
-                document.getElementById('last-update').innerHTML = `<i class="fas fa-exclamation-triangle"></i> Datos desactualizados (${minutesDiff} min)`;
-                updateSystemStatus('data', 'warning', `Desactualizado (${minutesDiff} min)`);
-                
-                if (minutesDiff > 5) {
-                    log(`Datos muy desactualizados: ${minutesDiff} minutos sin actualización`, logLevels.ERROR);
-                }
-            }
-        }
-
-        // Función para iniciar el listener de Firebase
-        function startFirebaseListener() {
-            if (!firebaseInitialized) {
-                log('No se puede iniciar el listener: Firebase no está inicializado', logLevels.ERROR);
-                return;
-            }
-            
-            const dataRef = database.ref('/');
-            dataRef.on('value', 
-                snapshot => {
-                    try {
-                        updateDataFromFirebase(snapshot);
-                    } catch (error) {
-                        log(`Error al procesar datos: ${error.message}`, logLevels.ERROR);
-                        updateSystemStatus('data', 'error', 'Error de procesamiento');
-                    }
-                }, 
-                error => {
-                    log(`Error en Firebase: ${error.message}`, logLevels.ERROR);
-                    updateConnectionStatus(false);
-                }
-            );
-            
-            // Verificar actualización de datos cada minuto
-            setInterval(checkDataFreshness, 60000);
-            log('Listener de Firebase iniciado correctamente', logLevels.INFO);
-        }
-
-        // Inicialización cuando el DOM está listo
-        document.addEventListener('DOMContentLoaded', () => {
-            log('Dashboard inicializando...', logLevels.INFO);
-            
-            try {
-                startFirebaseListener();
-                log('Dashboard inicializado correctamente', logLevels.INFO);
-            } catch (error) {
-                log(`Error al inicializar la aplicación: ${error.message}`, logLevels.ERROR);
-                updateConnectionStatus(false);
-            }
+/**
+ * EventManager.js - Centraliza todos los event listeners del juego
+ */
+
+class EventManager {
+    static setupAll() {
+        this.setupMenuButtons();
+        this.setupGameButtons();
+        this.setupKeyboard();
+        this.setupWindow();
+    }
+
+    static setupMenuButtons() {
+        document.getElementById('play-btn')?.addEventListener('click', () => {
+            NavigationManager.startGame();
         });
 
-        // Manejo de errores globales
-        window.addEventListener('error', event => {
-            log(`Error global: ${event.error}`, logLevels.ERROR);
-            updateConnectionStatus(false);
+        document.getElementById('tutorial-btn')?.addEventListener('click', () => {
+            NavigationManager.showTutorial();
         });
 
-        // Función para pausar/reanudar actualización de datos (para debugging)
-        function toggleDataUpdate() {
-            dataUpdateActive = !dataUpdateActive;
-            const status = dataUpdateActive ? 'activada' : 'pausada';
-            log(`Actualización de datos ${status}`, logLevels.INFO);
-            updateSystemStatus('data', dataUpdateActive ? 'ok' : 'warning', 
-                              dataUpdateActive ? 'Activo' : 'Pausado');
+        document.getElementById('about-btn')?.addEventListener('click', () => {
+            NavigationManager.showAbout();
+        });
+
+        document.getElementById('back-to-menu')?.addEventListener('click', () => {
+            NavigationManager.backToMenu();
+        });
+    }
+
+    static setupGameButtons() {
+        document.getElementById('btn-plant')?.addEventListener('click', () => {
+            GameActions.activatePlantMode();
+        });
+
+        document.getElementById('btn-water')?.addEventListener('click', () => {
+            GameActions.waterAllCrops();
+        });
+
+        document.getElementById('btn-harvest')?.addEventListener('click', () => {
+            GameActions.activateHarvestMode();
+        });
+
+        document.getElementById('btn-next-day')?.addEventListener('click', () => {
+            GameActions.nextDay();
+        });
+    }
+
+    static setupKeyboard() {
+        document.addEventListener('keydown', (event) => {
+            KeyboardHandler.handle(event);
+        });
+    }
+
+    static setupWindow() {
+        window.addEventListener('beforeunload', () => {
+            GameSaveManager.save();
+        });
+
+        window.addEventListener('resize', () => {
+            WindowHandler.handleResize();
+        });
+    }
+}
+
+/**
+ * NavigationManager.js - Maneja la navegación entre pantallas
+ */
+class NavigationManager {
+    static startGame() {
+        console.log('🎮 Iniciando juego...');
+        music.pause();
+        ScreenManager.show('game');
+
+        setTimeout(() => {
+            GameInitializer.init();
+        }, 100);
+    }
+
+    static showTutorial() {
+        ScreenManager.show('tutorial');
+    }
+
+    static showAbout() {
+        alert('🌱 NASA Farm Navigator\n\nSimulador agrícola que utiliza datos reales de la NASA para crear una experiencia educativa sobre agricultura y clima.\n\nDesarrollado con Phaser.js y NASA POWER API.');
+    }
+
+    static backToMenu() {
+        ScreenManager.show('menu');
+
+        if (window.game) {
+            window.game.destroy();
+            window.game = null;
+        }
+    }
+}
+
+/**
+ * GameActions.js - Acciones del juego
+ */
+class GameActions {
+    static activatePlantMode() {
+        console.log('🌱 Modo plantar activado');
+        SoundUtils.playPlant();
+
+        if (window.hud) {
+            window.hud.showNotification('🌱 Haz clic en una celda vacía para plantar', 'info', 3000);
+        }
+    }
+
+    static waterAllCrops() {
+        console.log('💧 Regando todos los cultivos...');
+
+        if (window.game) {
+            const success = window.game.waterCrops();
+            SoundUtils.playWater();
+
+            if (!success && window.hud) {
+                window.hud.showInsufficientEnergy();
+            }
+        }
+    }
+
+    static activateHarvestMode() {
+        console.log('🌾 Modo cosechar activado');
+
+        if (window.hud) {
+            window.hud.showNotification('🌾 Haz clic en cultivos maduros (naranjas) para cosechar', 'info', 3000);
+        }
+    }
+
+    static async nextDay() {
+        console.log('🌅 Avanzando al siguiente día...');
+
+        if (!window.game) {
+            console.error('❌ Juego no inicializado');
+            return;
         }
 
-        // Exponer función para debugging desde consola
-        window.toggleDataUpdate = toggleDataUpdate;
-    </script>
-</body>
-</html>
+        try {
+            const newWeather = await nasaAPI.getNextDayWeather();
+            gameState.updateWeather(newWeather);
+            gameState.nextDay();
+
+            if (window.game.getCurrentScene()) {
+                window.game.getCurrentScene().farm.updateCrops(newWeather);
+            }
+
+            SoundUtils.playNextDay();
+
+            const weatherDesc = WeatherUtils.getWeatherDescription(newWeather);
+            if (window.hud) {
+                window.hud.showNotification(`🌅 Día ${gameState.getDay()}: ${weatherDesc}`, 'info', 4000);
+            }
+
+            if (Math.random() < 0.3) {
+                setTimeout(() => TutorialUtils.showTip(), 1500);
+            }
+
+        } catch (error) {
+            console.error('❌ Error avanzando día:', error);
+            gameState.nextDay();
+            if (window.game.getCurrentScene()) {
+                window.game.getCurrentScene().farm.updateCrops(gameState.getWeather());
+            }
+        }
+    }
+}
+
+/**
+ * KeyboardHandler.js - Maneja eventos de teclado
+ */
+class KeyboardHandler {
+    static handle(event) {
+        // Teclas globales
+        switch (event.code) {
+            case 'F1':
+                event.preventDefault();
+                NavigationManager.showTutorial();
+                break;
+
+            case 'Escape':
+                if (ScreenManager.getCurrent() === 'game') {
+                    NavigationManager.backToMenu();
+                }
+                break;
+
+            case 'KeyD':
+                if (event.ctrlKey) {
+                    event.preventDefault();
+                    DebugUtils.toggle();
+                }
+                break;
+        }
+
+        // Teclas específicas del juego
+        if (ScreenManager.getCurrent() === 'game') {
+            this.handleGameKeys(event);
+        }
+    }
+
+    static handleGameKeys(event) {
+        switch (event.code) {
+            case 'Space':
+                event.preventDefault();
+                GameActions.nextDay();
+                break;
+
+            case 'KeyW':
+                event.preventDefault();
+                GameActions.waterAllCrops();
+                break;
+
+            case 'KeyP':
+                event.preventDefault();
+                GameActions.activatePlantMode();
+                break;
+
+            case 'KeyH':
+                event.preventDefault();
+                GameActions.activateHarvestMode();
+                break;
+
+            case 'KeyR':
+                if (event.ctrlKey) {
+                    event.preventDefault();
+                    GameResetManager.restart();
+                }
+                break;
+        }
+    }
+}
+
+/**
+ * WindowHandler.js - Maneja eventos de ventana
+ */
+class WindowHandler {
+    static handleResize() {
+        if (window.game && window.game.phaserGame) {
+            console.log('🔧 Ventana redimensionada');
+        }
+    }
+}
+
+/**
+ * GameSaveManager.js - Maneja guardado/carga
+ */
+class GameSaveManager {
+    static save() {
+        if (gameState && gameState.isGameStarted()) {
+            const saveData = gameState.getGameData();
+            StorageUtils.save('nasa_farm_save', saveData);
+            console.log('💾 Progreso guardado');
+        }
+    }
+
+    static load() {
+        const saveData = StorageUtils.load('nasa_farm_save');
+        if (saveData) {
+            gameState.loadGameData(saveData);
+            console.log('📂 Progreso cargado');
+            return true;
+        }
+        return false;
+    }
+}
+
+/**
+ * GameResetManager.js - Maneja reinicio del juego
+ */
+class GameResetManager {
+    static restart() {
+        if (confirm('🔄 ¿Estás seguro de que quieres reiniciar el juego?')) {
+            if (window.game) {
+                window.game.restart();
+            }
+            StorageUtils.remove('nasa_farm_save');
+            console.log('🔄 Juego reiniciado');
+        }
+    }
+}
+
+/**
+ * GameInitializer.js - Inicializa el juego
+ */
+class GameInitializer {
+    static init() {
+        try {
+            window.game = new Game();
+            window.hud = window.game.getHUD();
+
+            setTimeout(() => {
+                TutorialUtils.showTip();
+            }, 2000);
+
+            console.log('✅ Juego inicializado correctamente');
+
+        } catch (error) {
+            console.error('❌ Error inicializando juego:', error);
+            ErrorHandler.handleInitError();
+        }
+    }
+}
+
+/**
+ * ErrorHandler.js - Maneja errores del juego
+ */
+class ErrorHandler {
+    static handle(error) {
+        if (ScreenManager.getCurrent() === 'game') {
+            if (confirm('❌ Ha ocurrido un error. ¿Quieres volver al menú principal?')) {
+                NavigationManager.backToMenu();
+            }
+        }
+    }
+
+    static handleInitError() {
+        alert('Error al inicializar el juego. Por favor, recarga la página.');
+        NavigationManager.backToMenu();
+    }
+}
+
+/**
+ * BrowserUtils.js - Utilidades del navegador
+ */
+class BrowserUtils {
+    static checkCompatibility() {
+        // Verificar soporte básico
+        if (!window.localStorage) {
+            console.warn('⚠️ LocalStorage no disponible');
+        }
+
+        if (!window.WebGLRenderingContext) {
+            console.warn('⚠️ WebGL no disponible');
+        }
+    }
+}
